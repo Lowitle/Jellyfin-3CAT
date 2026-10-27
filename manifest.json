@@ -8,6 +8,14 @@
   "category": "General",
   "versions": [
     {
+      "version": "1.1.0.0",
+      "changelog": "3Cat 1.1.0.0",
+      "targetAbi": "10.11.0.0",
+      "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.1.0.0/threecat_1.1.0.0.zip",
+      "checksum": "DBF27E987A1326EB20711056A787AF68",
+      "timestamp": "2026-10-27T20:28:55Z"
+    },
+    {
       "version": "1.0.0.0",
       "changelog": "3Cat 1.0.0.0",
       "targetAbi": "10.11.0.0",
