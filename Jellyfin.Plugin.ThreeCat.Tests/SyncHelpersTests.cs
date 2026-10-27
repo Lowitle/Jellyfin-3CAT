@@ -28,29 +28,9 @@ public sealed class SyncHelpersTests
     [InlineData("", null)]
     [InlineData("   ", null)]
     [InlineData(null, null)]
-    [InlineData("none", null)]
-    [InlineData("Disabled", null)]
-    public void NormalizeLanguage_ReturnsAnIsoCodeOrNull(string? value, string? expected)
+    public void NormalizeLanguage_ReturnsTheLowerCaseTagOrNull(string? value, string? expected)
     {
         Assert.Equal(expected, ThreeCatSyncService.NormalizeLanguage(value));
-    }
-
-    [Fact]
-    public void NormalizeLanguages_KeepsTheOrderAndDropsDuplicates()
-    {
-        var languages = ThreeCatSyncService.NormalizeLanguages([" ES ", "ca", "es", "", "none", "CA-ES"]);
-
-        Assert.Equal(["es", "ca", "ca-es"], languages);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void NormalizeLanguages_WithoutConfiguration_ReturnsAnEmptyList(string? configuration)
-    {
-        IEnumerable<string>? configured = configuration is null ? null : [configuration];
-
-        Assert.Empty(ThreeCatSyncService.NormalizeLanguages(configured));
     }
 
     [Theory]

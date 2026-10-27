@@ -1,7 +1,7 @@
 ---
 name: "3Cat"
 guid: "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-version: "1.0.0.0"
+version: "1.1.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Crea una biblioteca de series con el catálogo a la carta de 3Cat (.strm + metadatos + subtítulos)."
@@ -16,6 +16,13 @@ owner: "Lowitle"
 artifacts:
   - "Jellyfin.Plugin.ThreeCat.dll"
 changelog: >
+  1.1.0.0: «Ver todos los programas» abre el catálogo completo de 3Cat en una tabla con búsqueda por
+  texto y filtros por tipo, canal, solo con vídeos y ya añadidos, columnas ordenables (nombre, id,
+  tipo, canal, idiomas, edad y fecha de publicación), selección de las filas visibles y paginación de
+  200 en 200; el catálogo sale del buscador público de 3Cat (2201 programas en cinco peticiones de 500,
+  con caché de diez minutos), los programas web y de radio se listan marcados y sin casilla porque su
+  catálogo de vídeos responde 404. Los subtítulos se descargan siempre en todos los idiomas que
+  publique cada vídeo, así que desaparecen las casillas de idioma y la opción «todos los idiomas».
   1.0.0.0: primera versión. Sincroniza programas de 3Cat por programatv_id o por la URL de
   cualquiera de sus vídeos, escribe un .strm por emisión con la URL del MP4 progresivo, un .nfo
   con el título, la temporada, el capítulo y la descripción, carátula de la serie, miniatura del

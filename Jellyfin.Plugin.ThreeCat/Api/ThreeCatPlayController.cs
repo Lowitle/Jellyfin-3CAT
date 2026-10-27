@@ -117,6 +117,28 @@ public sealed class ThreeCatPlayController : ControllerBase
     }
 
     /// <summary>
+    /// Lists every program of the 3Cat catalog in a single response.
+    /// </summary>
+    /// <remarks>
+    /// The configuration page cannot offer a table of programs without the whole catalog: 3Cat pages the
+    /// catalog of a program, not the list of programs, and its search endpoint does not filter or sort on
+    /// the server. This endpoint reads every page of the search endpoint (five requests of 500 programs)
+    /// and returns the flat list, which the page then filters, sorts and pages in the browser. The web and
+    /// radio programs are included and flagged with <see cref="ThreeCatCatalogProgram.HasVideo"/> =
+    /// <c>false</c>, so the page is the one that hides them.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Every program of the catalog.</returns>
+    [HttpGet("Programs/All")]
+    public async Task<ActionResult<IReadOnlyList<ThreeCatCatalogProgram>>> ListAllProgramsAsync(
+        CancellationToken cancellationToken)
+    {
+        var programs = await _client.ListAllProgramsAsync(cancellationToken).ConfigureAwait(false);
+
+        return Ok(programs);
+    }
+
+    /// <summary>
     /// Checks that the destination folder exists and is writable by the Jellyfin process.
     /// </summary>
     /// <param name="path">Folder to check.</param>

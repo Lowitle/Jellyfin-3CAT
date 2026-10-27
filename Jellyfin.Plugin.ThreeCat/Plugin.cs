@@ -65,9 +65,11 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// Brings the stored settings forward to the current schema.
     /// </summary>
     /// <remarks>
-    /// The plugin ships a single schema so far. The migration only repairs the collections that the
-    /// XML serializer leaves as <c>null</c> when it reads a configuration written by an older build,
-    /// which would otherwise make the refresh task throw a <see cref="NullReferenceException"/>.
+    /// The migration repairs the collections that the XML serializer leaves as <c>null</c> when it reads a
+    /// configuration written by an older build, which would otherwise make the refresh task throw a
+    /// <see cref="NullReferenceException"/>, and stamps the version of the schema: version 2 no longer has
+    /// subtitle languages (every published track is downloaded), so the elements written by version 1 are
+    /// dropped when the configuration is saved again.
     /// </remarks>
     /// <param name="configuration">Stored configuration.</param>
     private void MigrateConfiguration(PluginConfiguration configuration)
@@ -77,12 +79,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         if (configuration.Programs is null)
         {
             configuration.Programs = [];
-            changed = true;
-        }
-
-        if (configuration.SubtitleLanguages is null)
-        {
-            configuration.SubtitleLanguages = ["ca"];
             changed = true;
         }
 

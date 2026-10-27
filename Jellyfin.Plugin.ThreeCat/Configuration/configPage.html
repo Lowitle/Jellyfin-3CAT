@@ -84,11 +84,113 @@
                 margin-top: 1em;
             }
 
-            #ThreeCatConfigPage .threeCatLanguages {
+            /* Program catalog: filters, sortable table and pager. */
+            #ThreeCatConfigPage .threeCatFilters {
                 display: flex;
                 flex-wrap: wrap;
-                gap: 0.4em 1.2em;
-                margin: 0.4em 0 0.2em;
+                align-items: stretch;
+                gap: 0.6em 1em;
+                margin: 0.6em 0 1em;
+            }
+
+            #ThreeCatConfigPage .threeCatFilterField {
+                display: flex;
+                flex-direction: column;
+                flex: 1 1 12em;
+                min-width: 9em;
+            }
+
+            #ThreeCatConfigPage .threeCatFilterField > .threeCatFilterLabel {
+                display: block;
+                margin-bottom: 0.25em;
+                font-size: 0.85em;
+                opacity: 0.75;
+            }
+
+            #ThreeCatConfigPage .threeCatFilterText,
+            #ThreeCatConfigPage .threeCatSelect {
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            #ThreeCatConfigPage .threeCatSelect {
+                font: inherit;
+                color: inherit;
+                background: transparent;
+                border: 1px solid rgba(128, 128, 128, 0.6);
+                border-radius: 0.25em;
+                padding: 0.55em 0.4em;
+            }
+
+            #ThreeCatConfigPage .threeCatFilterToggle {
+                flex: 0 0 auto;
+                min-width: 0;
+                justify-content: flex-end;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable th.threeCatSortable {
+                cursor: pointer;
+                user-select: none;
+                white-space: nowrap;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable th.threeCatSortable:focus-visible {
+                outline: 1px solid #00a4dc;
+            }
+
+            #ThreeCatConfigPage .threeCatSortMark {
+                color: #00a4dc;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable tbody tr:hover {
+                background: rgba(128, 128, 128, 0.12);
+            }
+
+            /* Web and radio programs: listed for reference, but they have no videos to mirror. */
+            #ThreeCatConfigPage table.threeCatTable tbody tr.threeCatRowNoVideo {
+                background: rgba(128, 128, 128, 0.06);
+            }
+
+            #ThreeCatConfigPage .threeCatMuted {
+                opacity: 0.7;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable .threeCatCellCheck {
+                width: 2.2em;
+                padding-right: 0;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable .threeCatCellId {
+                width: 6em;
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable .threeCatCellKind {
+                width: 7.5em;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable .threeCatCellDate {
+                width: 7em;
+                white-space: nowrap;
+                font-variant-numeric: tabular-nums;
+            }
+
+            #ThreeCatConfigPage .threeCatTableEmpty {
+                padding: 1em 0.2em;
+            }
+
+            #ThreeCatConfigPage .threeCatPager {
+                display: flex;
+                align-items: center;
+                gap: 0.6em;
+                margin: 0.4em 0 0.6em;
+            }
+
+            #ThreeCatConfigPage .threeCatPagerText {
+                flex: 1 1 auto;
+                text-align: center;
+                opacity: 0.75;
             }
         </style>
 
@@ -103,9 +205,9 @@
                         <code>.nfo</code> y los subtítulos publicados.
                     </p>
                     <p class="fieldDescription">
-                        3Cat no publica un buscador en su API: añade un programa pegando su identificador
-                        (<code>programatv_id</code>, por ejemplo <code>119987484</code>) o la URL de cualquiera de
-                        sus vídeos, y el plugin resuelve el programa a partir de ella.
+                        Añade un programa por su identificador (<code>programatv_id</code>, por ejemplo
+                        <code>119987484</code>) o por la URL de cualquiera de sus vídeos, o pulsa
+                        «Ver todos los programas» para buscarlo en el catálogo completo de 3Cat.
                     </p>
                 </div>
 
@@ -117,6 +219,9 @@
                                placeholder="119987484 o https://www.3cat.cat/3cat/..." />
                         <button is="emby-button" type="button" id="ThreeCatAddProgram" class="raised button-submit">
                             <span>Añadir</span>
+                        </button>
+                        <button is="emby-button" type="button" id="ThreeCatListPrograms" class="raised">
+                            <span>Ver todos los programas</span>
                         </button>
                     </div>
 
@@ -141,6 +246,8 @@
                     <div class="fieldDescription" id="ThreeCatProgramsEmpty">
                         Todavía no hay ningún programa. Añade al menos uno para que la tarea genere la biblioteca.
                     </div>
+
+                    <div id="ThreeCatCatalog"></div>
                 </div>
 
                 <div class="verticalSection">
@@ -183,54 +290,11 @@
 
                     <div class="fieldDescription">
                         3Cat sirve los subtítulos en WebVTT; el plugin los convierte a <code>.srt</code> con el
-                        mismo nombre que el episodio, para que Jellyfin los asocie sin escanear de nuevo.
+                        mismo nombre que el episodio, para que Jellyfin los asocie sin escanear de nuevo. Se
+                        descargan <strong>todas las pistas que publique cada vídeo</strong>, una por idioma
+                        (<code>*.ca.srt</code>, <code>*.es.srt</code>…): casi todo el catálogo llega en catalán y
+                        los programas doblados o con audiodescripción añaden más pistas.
                     </div>
-
-                    <label class="checkboxContainer">
-                        <input is="emby-checkbox" type="checkbox" id="ThreeCatSubtitleAll" />
-                        <span>Todos los idiomas publicados</span>
-                    </label>
-
-                    <div class="threeCatLanguages" id="ThreeCatSubtitleLanguages">
-                        <label class="checkboxContainer">
-                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="ca" />
-                            <span>Català (ca)</span>
-                        </label>
-                        <label class="checkboxContainer">
-                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="es" />
-                            <span>Español (es)</span>
-                        </label>
-                        <label class="checkboxContainer">
-                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="en" />
-                            <span>English (en)</span>
-                        </label>
-                        <label class="checkboxContainer">
-                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="fr" />
-                            <span>Français (fr)</span>
-                        </label>
-                        <label class="checkboxContainer">
-                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="de" />
-                            <span>Deutsch (de)</span>
-                        </label>
-                        <label class="checkboxContainer">
-                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="it" />
-                            <span>Italiano (it)</span>
-                        </label>
-                        <label class="checkboxContainer">
-                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="pt" />
-                            <span>Português (pt)</span>
-                        </label>
-                        <label class="checkboxContainer">
-                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="gl" />
-                            <span>Galego (gl)</span>
-                        </label>
-                        <label class="checkboxContainer">
-                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="eu" />
-                            <span>Euskara (eu)</span>
-                        </label>
-                    </div>
-
-                    <div class="fieldDescription" id="ThreeCatSubtitleHint"></div>
                 </div>
 
                 <div class="verticalSection">
@@ -305,7 +369,34 @@
                 pluginId: 'd8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b',
                 // The pending programs, [Id, Title] as stored in the configuration.
                 programs: [],
-                bound: false
+                bound: false,
+                // The whole program catalog, loaded with «Ver todos los programas»: 3Cat publishes more
+                // than 2000 programs, so they are filtered, sorted and paged here, in the browser, and
+                // the table only renders a window of rows (2000 <tr> would make the page crawl).
+                catalog: {
+                    items: [],
+                    windowSize: 200,
+                    page: 1,
+                    totalPages: 1,
+                    visibleCount: 0,
+                    pageItems: null,
+                    selected: {},
+                    // Table state: it survives the re-renders, so filtering or sorting never loses the
+                    // programs already ticked.
+                    filter: '',
+                    kind: '',
+                    channel: '',
+                    onlyVideo: true,
+                    hideAdded: false,
+                    sort: 'title',
+                    dir: 1,
+                    headerCells: {},
+                    selectAll: null,
+                    addButton: null,
+                    countLabel: null,
+                    pager: null,
+                    body: null
+                }
             };
 
             function threeCatStatus(message) {
@@ -376,45 +467,143 @@
                 return fallback;
             }
 
-            function threeCatSubtitleCheckboxes() {
-                return Array.prototype.slice.call(
-                    document.querySelectorAll('#ThreeCatConfigPage [data-threecat-lang]'));
+            function threeCatClean(value) {
+                if (value === undefined || value === null) {
+                    return '';
+                }
+
+                var text = String(value);
+                if (text.indexOf('&') >= 0 || text.indexOf('<') >= 0) {
+                    var wrapper = document.createElement('div');
+                    wrapper.innerHTML = text;
+                    text = wrapper.textContent || '';
+                }
+
+                return text.replace(/\s+/g, ' ').trim();
             }
 
-            function threeCatSelectedLanguages() {
-                return threeCatSubtitleCheckboxes()
-                    .filter(function (input) { return input.checked; })
-                    .map(function (input) { return input.getAttribute('data-threecat-lang'); });
+            // Lower case without diacritics, so «doraemon» finds «Doraemon» and «catala» finds «Català».
+            function threeCatFold(value) {
+                var text = threeCatClean(value).toLowerCase();
+                if (text.normalize) {
+                    text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                }
+                return text;
             }
 
-            // The language check boxes only mean something when subtitles are enabled, and they are
-            // ignored while «all languages» is ticked.
-            function threeCatSyncSubtitleControls() {
-                var download = document.querySelector('#ThreeCatWriteSubtitles').checked;
-                var all = document.querySelector('#ThreeCatSubtitleAll').checked;
-                var hint = document.querySelector('#ThreeCatSubtitleHint');
-                var selected = threeCatSelectedLanguages().length;
-
-                document.querySelector('#ThreeCatSubtitleAll').disabled = !download;
-                threeCatSubtitleCheckboxes().forEach(function (input) {
-                    input.disabled = !download || all;
+            function threeCatCatalogIsAdded(programId) {
+                return ThreeCatConfig.programs.some(function (program) {
+                    return program.Id === programId;
                 });
+            }
 
-                if (!download) {
-                    hint.textContent = '';
-                    return;
+            function threeCatCatalogId(item) {
+                return threeCatClean(threeCatField(item, 'id'));
+            }
+
+            function threeCatCatalogTitle(item) {
+                return threeCatClean(threeCatField(item, 'title')) || threeCatCatalogId(item);
+            }
+
+            function threeCatCatalogUrl(item) {
+                return threeCatClean(threeCatField(item, 'url'));
+            }
+
+            // «TV» for the programs with a video catalog, «Web/radio» for the rest. The server resolves
+            // it from the typology 3Cat publishes, so the column and the «Solo con vídeos» filter agree.
+            function threeCatCatalogKind(item) {
+                return threeCatClean(threeCatField(item, 'kind'));
+            }
+
+            function threeCatCatalogKindLabel(kind) {
+                if (kind === 'TV') {
+                    return 'Programa de TV';
                 }
 
-                if (!all && selected === 0) {
-                    hint.className = 'fieldDescription threeCatWarning';
-                    hint.textContent = 'Sin ningún idioma marcado no se descargará ningún subtítulo.';
-                    return;
+                return kind ? 'Web/radio' : '';
+            }
+
+            function threeCatCatalogChannel(item) {
+                return threeCatClean(threeCatField(item, 'channel'));
+            }
+
+            // 3Cat flags the web and radio programs in the same catalog as the television ones. They are
+            // listed and flagged when «Solo con vídeos» is off, but they cannot be added because they
+            // have no videos to mirror.
+            function threeCatCatalogHasVideo(item) {
+                return threeCatField(item, 'hasVideo') !== false;
+            }
+
+            function threeCatCatalogLanguages(item) {
+                var languages = threeCatField(item, 'languages');
+                if (typeof languages === 'string') {
+                    languages = languages.split(',');
+                }
+                if (!Array.isArray(languages)) {
+                    return [];
+                }
+                return languages.map(threeCatClean).filter(function (language) { return language.length > 0; });
+            }
+
+            function threeCatCatalogAgeRating(item) {
+                return threeCatClean(threeCatField(item, 'ageRating'));
+            }
+
+            // The server normalizes the publication date to yyyy-MM-dd, which sorts as plain text. It is
+            // shown as dd/MM/yyyy, the format of 3cat.cat.
+            function threeCatCatalogPublished(item) {
+                return threeCatClean(threeCatField(item, 'published'));
+            }
+
+            function threeCatDisplayDate(value) {
+                var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+                return match ? match[3] + '/' + match[2] + '/' + match[1] : (value || '');
+            }
+
+            function threeCatCatalogSortValue(item, key) {
+                switch (key) {
+                    case 'id':
+                        return threeCatCatalogId(item);
+                    case 'kind':
+                        return threeCatCatalogKindLabel(threeCatCatalogKind(item));
+                    case 'channel':
+                        return threeCatCatalogChannel(item);
+                    case 'published':
+                        return threeCatCatalogPublished(item);
+                    default:
+                        return threeCatCatalogTitle(item);
+                }
+            }
+
+            function threeCatCatalogCompare(left, right) {
+                var catalog = ThreeCatConfig.catalog;
+                var first = threeCatCatalogSortValue(left, catalog.sort);
+                var second = threeCatCatalogSortValue(right, catalog.sort);
+                var fallback = function () {
+                    return threeCatCatalogTitle(left)
+                        .localeCompare(threeCatCatalogTitle(right), 'ca', { sensitivity: 'base' }) * catalog.dir;
+                };
+
+                if (catalog.sort === 'id') {
+                    var firstNumber = parseInt(first, 10);
+                    var secondNumber = parseInt(second, 10);
+                    if (!isNaN(firstNumber) && !isNaN(secondNumber) && firstNumber !== secondNumber) {
+                        return (firstNumber - secondNumber) * catalog.dir;
+                    }
                 }
 
-                hint.className = 'fieldDescription';
-                hint.textContent = all
-                    ? 'Se descargarán todas las pistas que publique 3Cat para cada vídeo.'
-                    : 'Se descargarán las pistas de: ' + threeCatSelectedLanguages().join(', ') + '.';
+                // The date is yyyy-MM-dd, so text order is date order; the programs without a date go
+                // last whatever the direction of the sort.
+                if (catalog.sort === 'published' && (first === '') !== (second === '')) {
+                    return first === '' ? 1 : -1;
+                }
+
+                var result = first.localeCompare(second, 'ca', { sensitivity: 'base' });
+                if (result === 0 && catalog.sort !== 'title') {
+                    result = threeCatCatalogTitle(left)
+                        .localeCompare(threeCatCatalogTitle(right), 'ca', { sensitivity: 'base' });
+                }
+                return result * catalog.dir;
             }
 
             function threeCatRenderPrograms() {
@@ -448,6 +637,12 @@
 
                     body.appendChild(row);
                 });
+
+                // The table of the catalog marks the programs that are already in this list and disables
+                // their check box, so it is redrawn when a program is added or removed.
+                if (ThreeCatConfig.catalog.items.length > 0 && ThreeCatConfig.catalog.body) {
+                    threeCatRenderCatalogRows();
+                }
             }
 
             function threeCatAddProgram(programId, title) {
@@ -463,6 +658,650 @@
 
                 ThreeCatConfig.programs.push({ Id: programId, Title: title });
                 return true;
+            }
+
+            // Jellyfin's checkbox is a customized built-in element: creating it with the "is" option
+            // upgrades it, and its attachedCallback REQUIRES a <span> inside the parent label (it looks
+            // it up and adds the "checkboxLabel" class). Without that span the callback throws and the
+            // render of the table is aborted, so every check box goes into a label with a <span>.
+            function threeCatCheckbox() {
+                var input;
+                try {
+                    input = document.createElement('input', { is: 'emby-checkbox' });
+                } catch (ex) {
+                    input = document.createElement('input');
+                    input.setAttribute('is', 'emby-checkbox');
+                }
+                input.type = 'checkbox';
+                input.className = 'emby-checkbox';
+                return input;
+            }
+
+            // Every program that passes the filters, sorted. The whole catalog is loaded with «Ver todos
+            // los programas», so this is the list the table pages: only a window of it is rendered.
+            function threeCatCatalogVisibleItems() {
+                var catalog = ThreeCatConfig.catalog;
+                var text = threeCatFold(catalog.filter);
+
+                var items = catalog.items.filter(function (item) {
+                    var id = threeCatCatalogId(item);
+                    if (catalog.hideAdded && threeCatCatalogIsAdded(id)) {
+                        return false;
+                    }
+                    if (catalog.onlyVideo && !threeCatCatalogHasVideo(item)) {
+                        return false;
+                    }
+                    if (catalog.kind && threeCatCatalogKind(item) !== catalog.kind) {
+                        return false;
+                    }
+                    if (catalog.channel && threeCatCatalogChannel(item) !== catalog.channel) {
+                        return false;
+                    }
+                    if (!text) {
+                        return true;
+                    }
+
+                    var haystack = [
+                        threeCatCatalogTitle(item),
+                        id,
+                        threeCatCatalogKindLabel(threeCatCatalogKind(item)),
+                        threeCatCatalogChannel(item),
+                        threeCatCatalogLanguages(item).join(' '),
+                        threeCatCatalogAgeRating(item),
+                        threeCatCatalogPublished(item),
+                        threeCatDisplayDate(threeCatCatalogPublished(item))
+                    ].join(' ');
+
+                    return threeCatFold(haystack).indexOf(text) >= 0;
+                });
+
+                items.sort(threeCatCatalogCompare);
+                return items;
+            }
+
+            // The rows of the table. The page is clamped, so filtering a 2200 program catalog down to
+            // three rows from the page 10 shows those three rows instead of an empty table.
+            function threeCatCatalogPageItems() {
+                var catalog = ThreeCatConfig.catalog;
+                var items = threeCatCatalogVisibleItems();
+                catalog.visibleCount = items.length;
+
+                var size = Math.max(1, catalog.windowSize);
+                var pages = Math.max(1, Math.ceil(items.length / size));
+                var page = Math.min(Math.max(1, catalog.page), pages);
+
+                catalog.page = page;
+                catalog.totalPages = pages;
+
+                var start = (page - 1) * size;
+                return items.slice(start, start + size);
+            }
+
+            function threeCatCatalogValues(selector) {
+                var seen = {};
+                var values = [];
+
+                ThreeCatConfig.catalog.items.forEach(function (item) {
+                    var value = selector(item);
+                    var key = threeCatFold(value);
+                    if (key.length === 0 || seen[key]) {
+                        return;
+                    }
+                    seen[key] = true;
+                    values.push(value);
+                });
+
+                values.sort(function (left, right) {
+                    return left.localeCompare(right, 'ca', { sensitivity: 'base' });
+                });
+                return values;
+            }
+
+            // The «Tipo» filter is a fixed list, so it survives a page change. The channels come from
+            // the catalog, so one left over from another load would hide every row and the combo could
+            // not even show it.
+            function threeCatResetUnavailableFilters() {
+                var catalog = ThreeCatConfig.catalog;
+
+                if (catalog.channel && threeCatCatalogValues(threeCatCatalogChannel).indexOf(catalog.channel) < 0) {
+                    catalog.channel = '';
+                }
+            }
+
+            function threeCatFilterField(labelText, control) {
+                var field = threeCatElement('div', 'threeCatFilterField');
+                var label = threeCatElement('label', 'threeCatFilterLabel', labelText);
+                label.htmlFor = control.id;
+                field.appendChild(label);
+                field.appendChild(control);
+                return field;
+            }
+
+            function threeCatFilterCheckbox(checkbox, labelText) {
+                var label = threeCatElement('label', 'emby-checkbox-label');
+                label.appendChild(checkbox);
+                label.appendChild(threeCatElement('span', '', labelText));
+
+                var field = threeCatElement('div', 'threeCatFilterField threeCatFilterToggle');
+                field.appendChild(label);
+                return field;
+            }
+
+            // Every option is a { value, label } pair: the value what the table is filtered by and the
+            // label what the user reads.
+            function threeCatFilterSelect(id, value, options, allLabel, onChange) {
+                var select = threeCatElement('select', 'threeCatSelect');
+                select.id = id;
+
+                [{ value: '', label: allLabel }].concat(options).forEach(function (option) {
+                    var element = threeCatElement('option', '', option.label);
+                    element.value = option.value;
+                    element.selected = option.value === value;
+                    select.appendChild(element);
+                });
+
+                select.addEventListener('change', function () {
+                    onChange(this.value);
+                });
+                return select;
+            }
+
+            function threeCatCatalogFilters() {
+                var catalog = ThreeCatConfig.catalog;
+                var bar = threeCatElement('div', 'threeCatFilters');
+
+                var search = threeCatElement('input', 'emby-input threeCatFilterText');
+                search.type = 'search';
+                search.id = 'ThreeCatCatalogFilter';
+                search.placeholder = 'Nombre, id, canal, idioma…';
+                search.value = catalog.filter;
+                search.addEventListener('input', function () {
+                    catalog.filter = this.value;
+                    catalog.page = 1;
+                    threeCatRenderCatalogRows();
+                });
+                // The table lives inside the configuration form: without this, Enter in the search box
+                // would submit the form and save the configuration.
+                search.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                    }
+                });
+                bar.appendChild(threeCatFilterField('Buscar', search));
+
+                // The «Tipo» filter comes from the typology 3Cat publishes: the television programs have
+                // a video catalog, the web and radio ones answer 404 when it is read.
+                bar.appendChild(threeCatFilterField('Tipo', threeCatFilterSelect(
+                    'ThreeCatCatalogKindFilter',
+                    catalog.kind,
+                    [
+                        { value: 'TV', label: 'Programas de TV' },
+                        { value: 'Web/radio', label: 'Web y radio' }
+                    ],
+                    'Todos los tipos',
+                    function (value) {
+                        catalog.kind = value;
+                        catalog.page = 1;
+                        threeCatRenderCatalogRows();
+                    })));
+
+                bar.appendChild(threeCatFilterField('Canal', threeCatFilterSelect(
+                    'ThreeCatCatalogChannelFilter',
+                    catalog.channel,
+                    threeCatCatalogValues(threeCatCatalogChannel).map(function (channel) {
+                        return { value: channel, label: channel };
+                    }),
+                    'Todos los canales',
+                    function (value) {
+                        catalog.channel = value;
+                        catalog.page = 1;
+                        threeCatRenderCatalogRows();
+                    })));
+
+                var onlyVideo = threeCatCheckbox();
+                onlyVideo.id = 'ThreeCatCatalogOnlyVideo';
+                onlyVideo.checked = catalog.onlyVideo;
+                onlyVideo.title = 'Oculta los programas web y de radio, que no tienen vídeos que replicar';
+                onlyVideo.addEventListener('change', function () {
+                    catalog.onlyVideo = this.checked;
+                    catalog.page = 1;
+                    threeCatRenderCatalogRows();
+                });
+                bar.appendChild(threeCatFilterCheckbox(onlyVideo, 'Solo con vídeos'));
+
+                var hideAdded = threeCatCheckbox();
+                hideAdded.id = 'ThreeCatCatalogHideAdded';
+                hideAdded.checked = catalog.hideAdded;
+                hideAdded.addEventListener('change', function () {
+                    catalog.hideAdded = this.checked;
+                    catalog.page = 1;
+                    threeCatRenderCatalogRows();
+                });
+                bar.appendChild(threeCatFilterCheckbox(hideAdded, 'Ocultar los ya añadidos'));
+
+                var clear = threeCatElement('button', 'emby-button raised', 'Limpiar filtros');
+                clear.type = 'button';
+                clear.disabled = !catalog.filter && !catalog.kind && !catalog.channel
+                    && !catalog.hideAdded && catalog.onlyVideo;
+                clear.addEventListener('click', function () {
+                    catalog.filter = '';
+                    catalog.kind = '';
+                    catalog.channel = '';
+                    catalog.hideAdded = false;
+                    catalog.onlyVideo = true;
+                    catalog.page = 1;
+                    threeCatRenderCatalog();
+                });
+                var clearField = threeCatElement('div', 'threeCatFilterField threeCatFilterToggle');
+                clearField.appendChild(clear);
+                bar.appendChild(clearField);
+
+                return bar;
+            }
+
+            function threeCatSortableHeader(label, key) {
+                var catalog = ThreeCatConfig.catalog;
+                var cell = threeCatElement('th', 'threeCatSortable', label);
+                var mark = threeCatElement('span', 'threeCatSortMark');
+                cell.appendChild(mark);
+                cell.tabIndex = 0;
+                cell.title = 'Ordenar por «' + label + '»';
+                cell.addEventListener('click', function () {
+                    threeCatSortCatalog(key);
+                });
+                cell.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        threeCatSortCatalog(key);
+                    }
+                });
+
+                catalog.headerCells[key] = { cell: cell, mark: mark };
+                return cell;
+            }
+
+            function threeCatSortCatalog(key) {
+                var catalog = ThreeCatConfig.catalog;
+                if (catalog.sort === key) {
+                    catalog.dir = -catalog.dir;
+                } else {
+                    catalog.sort = key;
+                    catalog.dir = 1;
+                }
+
+                catalog.page = 1;
+                threeCatUpdateSortMarks();
+                threeCatRenderCatalogRows();
+            }
+
+            function threeCatUpdateSortMarks() {
+                var catalog = ThreeCatConfig.catalog;
+
+                Object.keys(catalog.headerCells || {}).forEach(function (key) {
+                    var sorted = key === catalog.sort;
+                    var header = catalog.headerCells[key];
+                    header.mark.textContent = sorted ? (catalog.dir > 0 ? '▲' : '▼') : '';
+                    header.cell.setAttribute('aria-sort', sorted
+                        ? (catalog.dir > 0 ? 'ascending' : 'descending')
+                        : 'none');
+                });
+            }
+
+            function threeCatSelectAllCell() {
+                var catalog = ThreeCatConfig.catalog;
+                var cell = threeCatElement('th', 'threeCatCellCheck');
+                var label = threeCatElement('label', 'emby-checkbox-label');
+                var checkbox = threeCatCheckbox();
+                checkbox.id = 'ThreeCatCatalogSelectAll';
+                checkbox.title = 'Seleccionar los programas visibles';
+                checkbox.addEventListener('change', function () {
+                    var value = this.checked;
+                    // Only the rows of the current window are ticked: selecting 2200 programs by
+                    // accident would write 2200 entries in the configuration.
+                    (catalog.pageItems || threeCatCatalogPageItems()).forEach(function (item) {
+                        var itemId = threeCatCatalogId(item);
+                        if (threeCatCatalogHasVideo(item) && !threeCatCatalogIsAdded(itemId)) {
+                            catalog.selected[itemId] = value;
+                        }
+                    });
+                    threeCatRenderCatalogRows();
+                });
+                label.appendChild(checkbox);
+                label.appendChild(threeCatElement('span', ''));
+                cell.appendChild(label);
+                catalog.selectAll = checkbox;
+                return cell;
+            }
+
+            function threeCatCatalogRow(item) {
+                var catalog = ThreeCatConfig.catalog;
+                var id = threeCatCatalogId(item);
+                var title = threeCatCatalogTitle(item);
+                var added = threeCatCatalogIsAdded(id);
+                var hasVideo = threeCatCatalogHasVideo(item);
+                var row = threeCatElement('tr', added ? 'threeCatRowAdded' : (hasVideo ? '' : 'threeCatRowNoVideo'));
+
+                var checkCell = threeCatElement('td', 'threeCatCellCheck');
+                var checkLabel = threeCatElement('label', 'emby-checkbox-label');
+                var checkbox = threeCatCheckbox();
+                checkbox.checked = added || catalog.selected[id] === true;
+                checkbox.disabled = added || !hasVideo;
+                checkbox.title = added
+                    ? 'Ya está en la lista'
+                    : (hasVideo
+                        ? 'Seleccionar «' + title + '»'
+                        : 'Programa web o de radio: no tiene vídeos que replicar');
+                checkbox.addEventListener('change', function () {
+                    catalog.selected[id] = this.checked;
+                    threeCatUpdateCatalogSelection();
+                });
+                checkLabel.appendChild(checkbox);
+                checkLabel.appendChild(threeCatElement('span', ''));
+                checkCell.appendChild(checkLabel);
+                row.appendChild(checkCell);
+
+                var titleCell = threeCatElement(
+                    'td',
+                    'threeCatCellTitle' + (added || !hasVideo ? ' threeCatMuted' : ''));
+                var url = threeCatCatalogUrl(item);
+                if (url) {
+                    var link = threeCatElement('a', '', title);
+                    link.href = url;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    titleCell.appendChild(link);
+                } else {
+                    titleCell.textContent = title;
+                }
+                if (added) {
+                    titleCell.appendChild(threeCatElement('span', '', ' · ya añadido'));
+                }
+                row.appendChild(titleCell);
+
+                row.appendChild(threeCatElement('td', 'threeCatCellId', id));
+
+                var kindLabel = threeCatCatalogKindLabel(threeCatCatalogKind(item));
+                row.appendChild(threeCatElement(
+                    'td',
+                    'threeCatCellKind' + (kindLabel ? '' : ' threeCatMuted'),
+                    kindLabel || '—'));
+
+                var channel = threeCatCatalogChannel(item);
+                row.appendChild(threeCatElement('td', channel ? '' : 'threeCatMuted', channel || '—'));
+
+                var languages = threeCatCatalogLanguages(item);
+                row.appendChild(threeCatElement(
+                    'td',
+                    languages.length ? '' : 'threeCatMuted',
+                    languages.length ? languages.join(', ') : '—'));
+
+                var rating = threeCatCatalogAgeRating(item);
+                row.appendChild(threeCatElement('td', rating ? '' : 'threeCatMuted', rating || '—'));
+
+                // The date arrives as yyyy-MM-dd (it sorts as text) and is shown as dd/MM/yyyy, the
+                // format of 3cat.cat.
+                var published = threeCatCatalogPublished(item);
+                row.appendChild(threeCatElement(
+                    'td',
+                    'threeCatCellDate' + (published ? '' : ' threeCatMuted'),
+                    published ? threeCatDisplayDate(published) : '—'));
+
+                return row;
+            }
+
+            function threeCatRenderCatalogRows() {
+                var catalog = ThreeCatConfig.catalog;
+                if (!catalog.body) {
+                    return;
+                }
+
+                catalog.body.innerHTML = '';
+
+                // The rows of the current window are kept: the selection handlers reuse them until a
+                // filter or the pager asks for another set of rows.
+                catalog.pageItems = threeCatCatalogPageItems();
+                var items = catalog.pageItems;
+
+                if (items.length === 0) {
+                    var emptyText = 'Ningún programa del catálogo coincide con los filtros.';
+                    if (catalog.onlyVideo) {
+                        emptyText += ' Quita «Solo con vídeos» para ver también los programas web y de radio.';
+                    }
+
+                    var emptyRow = threeCatElement('tr');
+                    var emptyCell = threeCatElement('td', 'threeCatTableEmpty threeCatMuted', emptyText);
+                    emptyCell.colSpan = 8;
+                    emptyRow.appendChild(emptyCell);
+                    catalog.body.appendChild(emptyRow);
+                } else {
+                    items.forEach(function (item) {
+                        catalog.body.appendChild(threeCatCatalogRow(item));
+                    });
+                }
+
+                threeCatUpdateCatalogSelection();
+                threeCatUpdatePager();
+            }
+
+            function threeCatUpdateCatalogSelection() {
+                var catalog = ThreeCatConfig.catalog;
+                var visible = catalog.pageItems || threeCatCatalogPageItems();
+                var selectableVisible = visible.filter(function (item) {
+                    return threeCatCatalogHasVideo(item) && !threeCatCatalogIsAdded(threeCatCatalogId(item));
+                });
+                var selectedVisible = selectableVisible.filter(function (item) {
+                    return catalog.selected[threeCatCatalogId(item)] === true;
+                }).length;
+
+                // The selection survives filtering and paging, so the counters and the button work on
+                // every ticked row of the catalog, not only on the rows that are visible right now.
+                var selected = catalog.items.filter(function (item) {
+                    var itemId = threeCatCatalogId(item);
+                    return catalog.selected[itemId] === true
+                        && threeCatCatalogHasVideo(item)
+                        && !threeCatCatalogIsAdded(itemId);
+                }).length;
+
+                if (catalog.selectAll) {
+                    catalog.selectAll.checked = selectableVisible.length > 0
+                        && selectedVisible === selectableVisible.length;
+                    catalog.selectAll.disabled = selectableVisible.length === 0;
+                    catalog.selectAll.indeterminate = selectedVisible > 0
+                        && selectedVisible < selectableVisible.length;
+                }
+
+                if (catalog.addButton) {
+                    catalog.addButton.disabled = selected === 0;
+                    catalog.addButton.textContent = 'Añadir seleccionados (' + selected + ')';
+                }
+
+                if (catalog.countLabel) {
+                    var count = 'Mostrando ' + visible.length + ' de ' + catalog.visibleCount
+                        + ' programas filtrados de ' + catalog.items.length + ' del catálogo';
+                    if (selected > 0) {
+                        count += ' · ' + selected + ' seleccionado' + (selected === 1 ? '' : 's');
+                    }
+                    catalog.countLabel.textContent = count;
+                }
+            }
+
+            function threeCatCatalogPager() {
+                var catalog = ThreeCatConfig.catalog;
+                var pager = threeCatElement('div', 'threeCatPager');
+
+                var previous = threeCatElement('button', 'emby-button raised', 'Anterior');
+                previous.type = 'button';
+                previous.disabled = catalog.page <= 1;
+                previous.addEventListener('click', function () {
+                    catalog.page = Math.max(1, catalog.page - 1);
+                    threeCatRenderCatalogRows();
+                });
+                pager.appendChild(previous);
+
+                var text = threeCatElement(
+                    'span',
+                    'threeCatPagerText',
+                    'Página ' + catalog.page + ' de ' + catalog.totalPages);
+                pager.appendChild(text);
+
+                var next = threeCatElement('button', 'emby-button raised', 'Siguiente');
+                next.type = 'button';
+                next.disabled = catalog.page >= catalog.totalPages;
+                next.addEventListener('click', function () {
+                    catalog.page = catalog.page + 1;
+                    threeCatRenderCatalogRows();
+                });
+                pager.appendChild(next);
+
+                // The pager is redrawn with the table, so the labels are refreshed from
+                // threeCatUpdatePager instead of being fixed here.
+                catalog.pager = { previous: previous, text: text, next: next };
+                return pager;
+            }
+
+            function threeCatUpdatePager() {
+                var catalog = ThreeCatConfig.catalog;
+                if (!catalog.pager) {
+                    return;
+                }
+
+                catalog.pager.text.textContent = 'Página ' + catalog.page + ' de ' + catalog.totalPages;
+                catalog.pager.previous.disabled = catalog.page <= 1;
+                catalog.pager.next.disabled = catalog.page >= catalog.totalPages;
+            }
+
+            function threeCatCatalogCaption() {
+                var catalog = ThreeCatConfig.catalog;
+                var caption = catalog.items.length + ' programas cargados del catálogo de 3Cat'
+                    + ' · los filtros y el orden se aplican a todo el catálogo';
+
+                if (catalog.onlyVideo) {
+                    caption += ' · ocultos los programas web y de radio';
+                }
+
+                return caption;
+            }
+
+            function threeCatLoadAllPrograms() {
+                var catalog = ThreeCatConfig.catalog;
+                catalog.page = 1;
+                catalog.selected = {};
+                catalog.pageItems = null;
+
+                Dashboard.showLoadingMsg();
+                threeCatStatus('Leyendo el catálogo completo de 3Cat (unas 2200 entradas)… puede tardar unos segundos.');
+
+                ApiClient.getJSON(threeCatUrl('Programs/All')).then(function (result) {
+                    Dashboard.hideLoadingMsg();
+                    catalog.items = Array.isArray(result) ? result : (threeCatField(result, 'items') || []);
+                    catalog.page = 1;
+
+                    if (catalog.items.length === 0) {
+                        threeCatStatus('3Cat no ha devuelto ningún programa. Prueba a añadirlo por su id o por la URL de un vídeo.');
+                    } else {
+                        threeCatStatus('Catálogo completo cargado: ' + catalog.items.length
+                            + ' programas. Filtra, ordena y elige los que quieras añadir.');
+                    }
+
+                    threeCatRenderCatalog();
+                }, function (reason) {
+                    Dashboard.hideLoadingMsg();
+                    catalog.items = [];
+                    threeCatRenderCatalog();
+                    threeCatStatus(threeCatErrorMessage(
+                        reason,
+                        'No se pudo leer el catálogo completo de 3Cat. Prueba a añadir el programa por su id o por la URL de un vídeo.'));
+                });
+            }
+
+            function threeCatRenderCatalog() {
+                var container = document.querySelector('#ThreeCatCatalog');
+                var catalog = ThreeCatConfig.catalog;
+                container.innerHTML = '';
+                catalog.headerCells = {};
+                catalog.selectAll = null;
+                catalog.addButton = null;
+                catalog.countLabel = null;
+                catalog.pager = null;
+                catalog.body = null;
+
+                if (!catalog.items.length) {
+                    return;
+                }
+
+                threeCatResetUnavailableFilters();
+
+                container.appendChild(threeCatElement('h3', 'sectionTitle', 'Todos los programas'));
+
+                container.appendChild(threeCatCatalogFilters());
+
+                var addButton = threeCatElement(
+                    'button',
+                    'emby-button raised button-submit block',
+                    'Añadir seleccionados (0)');
+                addButton.type = 'button';
+                addButton.disabled = true;
+                addButton.addEventListener('click', threeCatAddSelected);
+                catalog.addButton = addButton;
+                container.appendChild(addButton);
+
+                var countLabel = threeCatElement('div', 'fieldDescription');
+                catalog.countLabel = countLabel;
+                container.appendChild(countLabel);
+
+                var wrap = threeCatElement('div', 'threeCatTableWrap');
+                var table = threeCatElement('table', 'threeCatTable');
+                var head = threeCatElement('thead');
+                var headRow = threeCatElement('tr');
+                headRow.appendChild(threeCatSelectAllCell());
+                headRow.appendChild(threeCatSortableHeader('Nombre', 'title'));
+                headRow.appendChild(threeCatSortableHeader('Id', 'id'));
+                headRow.appendChild(threeCatSortableHeader('Tipo', 'kind'));
+                headRow.appendChild(threeCatSortableHeader('Canal', 'channel'));
+                headRow.appendChild(threeCatSortableHeader('Idiomas', 'languages'));
+                headRow.appendChild(threeCatSortableHeader('Edad', 'ageRating'));
+                headRow.appendChild(threeCatSortableHeader('Publicado', 'published'));
+                head.appendChild(headRow);
+                table.appendChild(head);
+
+                var body = threeCatElement('tbody');
+                catalog.body = body;
+                table.appendChild(body);
+
+                wrap.appendChild(table);
+                container.appendChild(wrap);
+
+                container.appendChild(threeCatElement('div', 'fieldDescription', threeCatCatalogCaption()));
+
+                container.appendChild(threeCatCatalogPager());
+
+                threeCatUpdateSortMarks();
+                threeCatRenderCatalogRows();
+            }
+
+            function threeCatAddSelected() {
+                var catalog = ThreeCatConfig.catalog;
+                var added = 0;
+
+                catalog.items.forEach(function (item) {
+                    var id = threeCatCatalogId(item);
+                    if (catalog.selected[id] !== true || !threeCatCatalogHasVideo(item) || threeCatCatalogIsAdded(id)) {
+                        return;
+                    }
+
+                    ThreeCatConfig.programs.push({ Id: id, Title: threeCatCatalogTitle(item) });
+                    added++;
+                });
+
+                catalog.selected = {};
+                threeCatRenderPrograms();
+
+                if (added === 0) {
+                    threeCatStatus('No hay ningún programa seleccionado.');
+                    return;
+                }
+
+                threeCatStatus('Añadido(s) ' + added + ' programa(s). Recuerda guardar los cambios.');
             }
 
             function threeCatResolve(value) {
@@ -601,17 +1440,8 @@
                         threeCatField(config, 'pruneExpired') !== false;
                     document.querySelector('#ThreeCatDeleteObsolete').checked =
                         threeCatField(config, 'deleteObsolete') === true;
-                    document.querySelector('#ThreeCatSubtitleAll').checked =
-                        threeCatField(config, 'downloadAllSubtitleLanguages') === true;
-
-                    var languages = threeCatField(config, 'subtitleLanguages') || ['ca'];
-
-                    threeCatSubtitleCheckboxes().forEach(function (input) {
-                        input.checked = languages.indexOf(input.getAttribute('data-threecat-lang')) >= 0;
-                    });
 
                     threeCatRenderPrograms();
-                    threeCatSyncSubtitleControls();
                     threeCatStatus('');
                     Dashboard.hideLoadingMsg();
                 }, function () {
@@ -635,9 +1465,6 @@
                         document.querySelector('#ThreeCatRefreshInterval').value, 12);
                     config.MaxItemsPerProgram = threeCatInt(
                         document.querySelector('#ThreeCatMaxItems').value, 0);
-                    config.SubtitleLanguages = threeCatSelectedLanguages();
-                    config.DownloadAllSubtitleLanguages =
-                        document.querySelector('#ThreeCatSubtitleAll').checked;
                     config.WriteNfo = document.querySelector('#ThreeCatWriteNfo').checked;
                     config.WriteSubtitles = document.querySelector('#ThreeCatWriteSubtitles').checked;
                     config.PruneExpired = document.querySelector('#ThreeCatPruneExpired').checked;
@@ -694,14 +1521,7 @@
                 document.querySelector('#ThreeCatCheckPath').addEventListener('click', threeCatCheckPath);
                 document.querySelector('#ThreeCatCreateLibrary').addEventListener('click', threeCatCreateLibrary);
                 document.querySelector('#ThreeCatRunNow').addEventListener('click', threeCatRunNow);
-
-                document.querySelector('#ThreeCatWriteSubtitles')
-                    .addEventListener('change', threeCatSyncSubtitleControls);
-                document.querySelector('#ThreeCatSubtitleAll')
-                    .addEventListener('change', threeCatSyncSubtitleControls);
-                threeCatSubtitleCheckboxes().forEach(function (input) {
-                    input.addEventListener('change', threeCatSyncSubtitleControls);
-                });
+                document.querySelector('#ThreeCatListPrograms').addEventListener('click', threeCatLoadAllPrograms);
 
                 document.querySelector('#ThreeCatConfigForm').addEventListener('submit', function (event) {
                     event.preventDefault();

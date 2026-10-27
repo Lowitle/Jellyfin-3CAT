@@ -21,25 +21,16 @@ public sealed partial class ThreeCatSyncService
             return [];
         }
 
-        var languages = NormalizeLanguages(configuration.SubtitleLanguages);
-        if (!configuration.DownloadAllSubtitleLanguages && languages.Count == 0)
-        {
-            _logger.LogDebug(
-                "3Cat: la descarga de subtítulos está activa pero no hay idiomas marcados; "
-                + "no se escribe ningún .srt del vídeo {VideoId}",
-                videoId);
-
-            return [];
-        }
-
-        var selection = SelectSubtitleTracks(tracks, languages, configuration.DownloadAllSubtitleLanguages);
+        // 3Cat publishes one track per language it has («Català» for most of the catalog, «Castellà» for
+        // the dubbed programmes) and no video publishes more than a handful, so every track is written:
+        // the page has no language picker and the user gets whatever 3Cat offers for each episode.
+        var selection = SelectSubtitleTracks(tracks);
         if (selection.Count == 0)
         {
             _logger.LogInformation(
-                "3Cat: el vídeo {VideoId} publica subtítulos en {Published} pero ninguno coincide con los idiomas configurados ({Requested})",
+                "3Cat: el vídeo {VideoId} publica {Tracks} pista(s) de subtítulos sin URL descargable",
                 videoId,
-                string.Join(", ", tracks.Select(track => track.Iso).Where(iso => !string.IsNullOrWhiteSpace(iso))),
-                string.Join(", ", languages));
+                tracks.Count);
 
             return [];
         }
@@ -87,56 +78,32 @@ public sealed partial class ThreeCatSyncService
     }
 
     /// <summary>
-    /// Pairs the requested languages with the subtitle tracks published by 3Cat.
+    /// Pairs the subtitle tracks published by 3Cat with the languages they are written in.
     /// </summary>
     /// <param name="tracks">Subtitle tracks of the video.</param>
-    /// <param name="languages">Requested languages (already normalized).</param>
-    /// <param name="allLanguages">When <c>true</c> every published track is selected.</param>
     /// <returns>The tracks to download, at most one per language.</returns>
-    internal static IReadOnlyList<SubtitleSource> SelectSubtitleTracks(
-        IReadOnlyList<ThreeCatSubtitle> tracks,
-        IReadOnlyList<string> languages,
-        bool allLanguages)
+    /// <remarks>
+    /// 3Cat publishes «Català (SPS)» tracks under <c>ca</c> but some videos arrive without an ISO code;
+    /// those are written as Catalan, which is the language of the whole catalog. Two tracks of the same
+    /// language (the same one in two qualities, for instance) are written once.
+    /// </remarks>
+    internal static IReadOnlyList<SubtitleSource> SelectSubtitleTracks(IReadOnlyList<ThreeCatSubtitle> tracks)
     {
-        var usable = tracks.Where(track => !string.IsNullOrWhiteSpace(track.Url)).ToList();
-        if (usable.Count == 0)
-        {
-            return [];
-        }
-
         var selection = new List<SubtitleSource>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (allLanguages)
+        foreach (var track in tracks)
         {
-            foreach (var track in usable)
-            {
-                var language = TrackLanguage(track.Iso) ?? "ca";
-                if (seen.Add(language))
-                {
-                    selection.Add(new SubtitleSource(language, track.Url!));
-                }
-            }
-
-            return selection;
-        }
-
-        foreach (var language in languages)
-        {
-            var track = usable.FirstOrDefault(
-                candidate => string.Equals(TrackLanguage(candidate.Iso), language, StringComparison.OrdinalIgnoreCase));
-
-            // 3Cat publishes «Català (SPS)» tracks under «ca» but some videos arrive without an iso
-            // code: when a single language is configured and a single track is published, keep it
-            // under the requested name.
-            track ??= usable.Count == 1 && languages.Count == 1 ? usable[0] : null;
-
-            if (track is null || !seen.Add(language))
+            if (string.IsNullOrWhiteSpace(track.Url))
             {
                 continue;
             }
 
-            selection.Add(new SubtitleSource(language, track.Url!));
+            var language = TrackLanguage(track.Iso) ?? "ca";
+            if (seen.Add(language))
+            {
+                selection.Add(new SubtitleSource(language, track.Url!));
+            }
         }
 
         return selection;

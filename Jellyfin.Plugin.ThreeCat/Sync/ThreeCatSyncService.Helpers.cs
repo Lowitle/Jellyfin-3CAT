@@ -35,46 +35,12 @@ public sealed partial class ThreeCatSyncService
     }
 
     /// <summary>
-    /// Normalizes a subtitle language configuration value.
+    /// Normalizes a subtitle language tag published by 3Cat.
     /// </summary>
-    /// <param name="value">Configured value.</param>
-    /// <returns>An ISO language code, or <c>null</c> when subtitles are disabled.</returns>
+    /// <param name="value">Language tag.</param>
+    /// <returns>The lower case tag, or <c>null</c> when 3Cat publishes none.</returns>
     internal static string? NormalizeLanguage(string? value)
-    {
-        var language = value?.Trim().ToLowerInvariant();
-        if (string.IsNullOrEmpty(language))
-        {
-            return null;
-        }
-
-        return language switch
-        {
-            "none" or "ninguno" or "ningú" or "disabled" => null,
-            _ => language
-        };
-    }
-
-    /// <summary>
-    /// Normalizes the list of subtitle languages selected in the configuration.
-    /// </summary>
-    /// <param name="configured">Languages selected with the check boxes.</param>
-    /// <returns>The distinct ISO codes to download, in the configured order.</returns>
-    internal static IReadOnlyList<string> NormalizeLanguages(IEnumerable<string>? configured)
-    {
-        var languages = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var value in configured ?? [])
-        {
-            var language = NormalizeLanguage(value);
-            if (language is not null && seen.Add(language))
-            {
-                languages.Add(language);
-            }
-        }
-
-        return languages;
-    }
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
     /// <summary>
     /// Ranks the size tag 3Cat publishes («MASTER», «1014x570», «288x422»...) to pick the biggest image.

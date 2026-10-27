@@ -44,6 +44,12 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
 - **Programas configurables**: se indica el `programatv_id` numérico (`119987484`) o la URL de
   cualquiera de sus vídeos, y el plugin deduce el programa. La lista de programas se guarda en la
   configuración del plugin y se puede editar desde la página de configuración.
+- **Catálogo de programas**: el botón **Ver todos los programas** lee el buscador público de 3Cat
+  (`api.3cat.cat/cercador/tot`, 2201 programas en cinco peticiones de 500) y los muestra en una tabla
+  con búsqueda por texto y filtros por tipo, canal, solo con vídeos y ya añadidos, columnas ordenables
+  (nombre, id, tipo, canal, idiomas, edad y fecha de publicación), selección de las filas visibles y
+  paginación de 200 en 200. Los programas web y de radio aparecen marcados pero no se pueden añadir:
+  su catálogo de vídeos responde 404.
 - **Catálogo paginado**: recorre todas las páginas del catálogo (`resposta.paginacio.total_pagines`)
   con `items_pagina=100`, así que no se pierde ninguna emisión.
 - **Series y episodios**: agrupa los vídeos de cada programa en una serie, con temporadas y el número
@@ -57,7 +63,7 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
 - **Carátulas**: descarga `poster.jpg` del programa y `fanart.jpg` desde las imágenes del catálogo
   (`sdom=img`).
 - **Subtítulos** (opcionales): descarga los WebVTT de 3Cat y los convierte a SRT junto a cada episodio
-  (`*.ca.srt`, `*.es.srt`…). Se pueden marcar varios idiomas o **todos los idiomas disponibles**.
+  (`*.ca.srt`, `*.es.srt`…). Se descargan **todas las pistas que publique cada vídeo**, una por idioma.
 - **Vídeos caducados**: 3Cat publica `data_caducitat` por vídeo. Pasada esa fecha el MP4 responde 404,
   así que el episodio deja de escribirse y se limpian sus archivos anteriores.
 - **Aviso de geobloqueo**: si el catálogo no devuelve URL reproducible (geobloqueo o despublicación) la
@@ -67,16 +73,14 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
 
 | Campo | Por defecto | Descripción |
 | --- | --- | --- |
-| **Programas** | vacío | Lista de programas a replicar, por `programatv_id` o por URL de un vídeo. Al pulsar **Añadir** el plugin valida la referencia y guarda el título del programa, que es el nombre de la carpeta de la serie. |
+| **Programas** | vacío | Lista de programas a replicar, por `programatv_id` o por URL de un vídeo. Al pulsar **Añadir** el plugin valida la referencia y guarda el título del programa, que es el nombre de la carpeta de la serie. **Ver todos los programas** abre la tabla del catálogo completo de 3Cat para buscarlos y añadirlos de una vez. |
 | **Carpeta de destino** | vacío | Carpeta raíz donde se escriben las carpetas de serie. **Comprobar carpeta** verifica que existe y que Jellyfin puede escribir; **Crear biblioteca «3Cat»** la da de alta como biblioteca de series. |
 | **Intervalo de actualización (horas)** | `12` | Periodicidad de la tarea programada «Actualizar 3Cat». La tarea también se lanza al arrancar el servidor. |
 | **Máximo de episodios por programa** | `0` | `0` escribe todos los vídeos del catálogo; un valor positivo se queda con los más recientes. |
 | **Escribir archivos .nfo** | activado | Genera `tvshow.nfo` y un `.nfo` por episodio. Es la fuente de metadatos de la biblioteca. |
 | **Omitir los vídeos caducados y borrar sus archivos** | activado | Salta los vídeos con `data_caducitat` pasada y limpia lo que ya se hubiera escrito. |
 | **Borrar los archivos que ya no están en el catálogo** | desactivado | Elimina `.strm`/`.nfo`/`.srt` de la carpeta de la serie que la ejecución no haya escrito. Si el catálogo responde vacío, la carpeta se queda vacía: úsalo solo para limpiar a mano. |
-| **Descargar subtítulos** | activado | Descarga los WebVTT y los convierte a SRT. Sin idiomas marcados no se escribe ningún `.srt`. |
-| **Todos los idiomas disponibles de cada vídeo** | desactivado | Descarga todas las pistas que publique 3Cat para cada episodio e ignora las casillas de idioma. |
-| **Catalán / Español / Inglés / Francés / Alemán / Italiano / Portugués / Gallego / Euskera** | `ca` | Se pueden marcar varios: se escribe un `.srt` por idioma. Si 3Cat no publica la pista pedida se usa el catalán cuando existe. |
+| **Descargar subtítulos** | activado | Descarga **todas** las pistas WebVTT que publique cada vídeo y las convierte a SRT, un archivo por idioma. Casi todo el catálogo llega en catalán; los programas doblados o con audiodescripción añaden más pistas. |
 
 El botón **Ejecutar ahora** guarda la configuración y lanza la tarea sin esperar al siguiente ciclo.
 
@@ -107,7 +111,7 @@ El botón **Ejecutar ahora** guarda la configuración y lanza la tarea sin esper
     └── Season 1/
         ├── Doraemon - S01E1450 - Título del episodio.strm
         ├── Doraemon - S01E1450 - Título del episodio.nfo
-        └── Doraemon - S01E1450 - Título del episodio.ca.srt   (uno por idioma marcado)
+        └── Doraemon - S01E1450 - Título del episodio.ca.srt   (uno por idioma publicado)
 ```
 
 - Un `.strm` por emisión con una sola línea: la URL del MP4.

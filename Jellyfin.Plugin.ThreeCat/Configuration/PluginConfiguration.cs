@@ -27,7 +27,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>
     /// Schema version of the configuration written by this build.
     /// </summary>
-    public const int CurrentVersion = 1;
+    /// <remarks>
+    /// Version 2 dropped the subtitle language picker: every track published by 3Cat is downloaded now,
+    /// so <c>SubtitleLanguages</c> and <c>DownloadAllSubtitleLanguages</c> no longer exist. The XML
+    /// serializer ignores the elements of a configuration written by an older build.
+    /// </remarks>
+    public const int CurrentVersion = 2;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PluginConfiguration"/> class.
@@ -40,8 +45,6 @@ public class PluginConfiguration : BasePluginConfiguration
         RefreshIntervalHours = 12;
         WriteNfo = true;
         WriteSubtitles = true;
-        SubtitleLanguages = ["ca"];
-        DownloadAllSubtitleLanguages = false;
         DeleteObsolete = false;
         PruneExpired = true;
         MaxItemsPerProgram = 0;
@@ -81,22 +84,13 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether the WebVTT subtitles published by 3Cat are downloaded
     /// and converted to SRT.
     /// </summary>
-    public bool WriteSubtitles { get; set; }
-
-    /// <summary>
-    /// Gets or sets the subtitle languages to download («ca», «es»...).
-    /// </summary>
     /// <remarks>
-    /// 3Cat publishes Catalan tracks («Català») for most of its catalog. The list is only used when
-    /// <see cref="DownloadAllSubtitleLanguages"/> is disabled.
+    /// Every track published for the video is written (<c>*.ca.srt</c>, <c>*.es.srt</c>...), one file per
+    /// language. 3Cat publishes Catalan for most of its catalog and a second track for the programmes
+    /// that are dubbed or subtitled in Spanish, so there is no language picker: the page follows the
+    /// tracks of each video instead of the other way around.
     /// </remarks>
-    public List<string> SubtitleLanguages { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether every subtitle track published by 3Cat is downloaded,
-    /// regardless of <see cref="SubtitleLanguages"/>.
-    /// </summary>
-    public bool DownloadAllSubtitleLanguages { get; set; }
+    public bool WriteSubtitles { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether .strm files that no longer exist in the catalog are removed.
