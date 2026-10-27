@@ -9,7 +9,7 @@
   "versions": [
     {
       "version": "1.1.0.0",
-      "changelog": "3Cat 1.1.0.0",
+      "changelog": "«Ver todos los programas» abre el catálogo completo de 3Cat (buscador público: 2201 programas en cinco peticiones de 500, con caché de diez minutos) en una tabla con búsqueda por texto y filtros por tipo, canal, solo con vídeos y ya añadidos, columnas ordenables (nombre, id, tipo, canal, idiomas, edad y fecha), selección de las filas visibles y paginación de 200 en 200; los programas web y de radio se listan marcados y sin casilla porque su catálogo de vídeos responde 404. Los subtítulos se descargan siempre en todos los idiomas que publique cada vídeo, así que desaparecen las casillas de idioma y la opción «todos los idiomas».",
       "targetAbi": "10.11.0.0",
       "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.1.0.0/threecat_1.1.0.0.zip",
       "checksum": "DBF27E987A1326EB20711056A787AF68",
