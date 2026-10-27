@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>3Cat</title>
+</head>
+<body>
+    <div id="ThreeCatConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+
+        <style type="text/css">
+            /* Jellyfin caps every <form> at 54em (site.scss); this page uses the full width so the
+               table of programs and the long paths fit. */
+            #ThreeCatConfigPage form {
+                max-width: none;
+            }
+
+            #ThreeCatConfigPage .inputContainer > .emby-input {
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            #ThreeCatConfigPage .threeCatRow {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.6em;
+                align-items: center;
+                margin-bottom: 0.6em;
+            }
+
+            #ThreeCatConfigPage .threeCatRow > .emby-input {
+                flex: 1 1 18em;
+                min-width: 12em;
+            }
+
+            #ThreeCatConfigPage .threeCatTableWrap {
+                overflow-x: auto;
+                margin: 0.6em 0;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable th,
+            #ThreeCatConfigPage table.threeCatTable td {
+                text-align: left;
+                padding: 0.45em 0.6em;
+                border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+                vertical-align: middle;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable th {
+                font-weight: 600;
+                font-size: 0.9em;
+                opacity: 0.8;
+            }
+
+            #ThreeCatConfigPage .threeCatMono {
+                font-family: monospace;
+                font-size: 0.9em;
+                opacity: 0.85;
+                word-break: break-all;
+            }
+
+            #ThreeCatConfigPage .threeCatWarning {
+                color: #d9534f;
+            }
+
+            #ThreeCatConfigPage .threeCatOk {
+                color: #4caf50;
+            }
+
+            #ThreeCatConfigPage .threeCatStatus {
+                margin-top: 0.8em;
+                min-height: 1.4em;
+            }
+
+            #ThreeCatConfigPage .threeCatActions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.6em;
+                align-items: center;
+                margin-top: 1em;
+            }
+
+            #ThreeCatConfigPage .threeCatLanguages {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.4em 1.2em;
+                margin: 0.4em 0 0.2em;
+            }
+        </style>
+
+        <div class="content-primary">
+            <form id="ThreeCatConfigForm">
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">3Cat</h2>
+                    <p class="fieldDescription">
+                        Genera una biblioteca de series a partir del catálogo a la carta de 3Cat: cada programa
+                        configurado se convierte en una serie con un archivo <code>.strm</code> por episodio, su
+                        <code>.nfo</code> y los subtítulos publicados.
+                    </p>
+                    <p class="fieldDescription">
+                        3Cat no publica un buscador en su API: añade un programa pegando su identificador
+                        (<code>programatv_id</code>, por ejemplo <code>119987484</code>) o la URL de cualquiera de
+                        sus vídeos, y el plugin resuelve el programa a partir de ella.
+                    </p>
+                </div>
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Programas</h2>
+
+                    <div class="threeCatRow">
+                        <input is="emby-input" type="text" id="ThreeCatProgramInput"
+                               placeholder="119987484 o https://www.3cat.cat/3cat/..." />
+                        <button is="emby-button" type="button" id="ThreeCatAddProgram" class="raised button-submit">
+                            <span>Añadir</span>
+                        </button>
+                    </div>
+
+                    <div class="fieldDescription" id="ThreeCatProgramHint">
+                        El título que devuelve 3Cat se usa como nombre de la carpeta de la serie. Si lo cambias a
+                        mano en el sistema de archivos, cambia también aquí.
+                    </div>
+
+                    <div class="threeCatTableWrap">
+                        <table class="threeCatTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 55%">Programa</th>
+                                    <th style="width: 35%">Referencia</th>
+                                    <th style="width: 10%"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="ThreeCatProgramsBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="fieldDescription" id="ThreeCatProgramsEmpty">
+                        Todavía no hay ningún programa. Añade al menos uno para que la tarea genere la biblioteca.
+                    </div>
+                </div>
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Biblioteca</h2>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatDestinationPath">Carpeta de destino</label>
+                        <input is="emby-input" type="text" id="ThreeCatDestinationPath" />
+                        <div class="fieldDescription">
+                            Ruta absoluta tal y como la ve el servidor Jellyfin (en Docker, la ruta del contenedor,
+                            por ejemplo <code>/media/3cat</code>). Cada programa se escribe en su propia carpeta
+                            dentro de ella.
+                        </div>
+                    </div>
+
+                    <div class="threeCatActions">
+                        <button is="emby-button" type="button" id="ThreeCatCheckPath" class="raised">
+                            <span>Comprobar carpeta</span>
+                        </button>
+                        <button is="emby-button" type="button" id="ThreeCatCreateLibrary" class="raised">
+                            <span>Crear biblioteca «3Cat»</span>
+                        </button>
+                    </div>
+
+                    <div class="fieldDescription" id="ThreeCatLibraryStatus"></div>
+                    <div class="fieldDescription">
+                        «Crear biblioteca» añade la carpeta de destino a una biblioteca de tipo «Programas de TV»
+                        que lee los <code>.nfo</code> locales. Si ya existe una biblioteca llamada «3Cat», se le
+                        añade la carpeta en lugar de crear otra.
+                    </div>
+                </div>
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Subtítulos</h2>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatWriteSubtitles" />
+                        <span>Descargar los subtítulos publicados y convertirlos a SRT</span>
+                    </label>
+
+                    <div class="fieldDescription">
+                        3Cat sirve los subtítulos en WebVTT; el plugin los convierte a <code>.srt</code> con el
+                        mismo nombre que el episodio, para que Jellyfin los asocie sin escanear de nuevo.
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatSubtitleAll" />
+                        <span>Todos los idiomas publicados</span>
+                    </label>
+
+                    <div class="threeCatLanguages" id="ThreeCatSubtitleLanguages">
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="ca" />
+                            <span>Català (ca)</span>
+                        </label>
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="es" />
+                            <span>Español (es)</span>
+                        </label>
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="en" />
+                            <span>English (en)</span>
+                        </label>
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="fr" />
+                            <span>Français (fr)</span>
+                        </label>
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="de" />
+                            <span>Deutsch (de)</span>
+                        </label>
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="it" />
+                            <span>Italiano (it)</span>
+                        </label>
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="pt" />
+                            <span>Português (pt)</span>
+                        </label>
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="gl" />
+                            <span>Galego (gl)</span>
+                        </label>
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" data-threecat-lang="eu" />
+                            <span>Euskara (eu)</span>
+                        </label>
+                    </div>
+
+                    <div class="fieldDescription" id="ThreeCatSubtitleHint"></div>
+                </div>
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Opciones</h2>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatRefreshInterval">Intervalo de actualización (horas)</label>
+                        <input is="emby-input" type="number" min="1" max="720" id="ThreeCatRefreshInterval" />
+                        <div class="fieldDescription">
+                            Cada cuántas horas se ejecuta «Actualizar 3Cat». La tarea también se lanza al arrancar
+                            el servidor. Los valores menores que 1 vuelven a las 12 horas.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatMaxItems">Máximo de episodios por programa</label>
+                        <input is="emby-input" type="number" min="0" id="ThreeCatMaxItems" />
+                        <div class="fieldDescription">
+                            <code>0</code> escribe todos los vídeos del catálogo. Con un valor positivo se queda
+                            con los episodios más recientes.
+                        </div>
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatWriteNfo" />
+                        <span>Escribir archivos .nfo</span>
+                    </label>
+                    <div class="fieldDescription">
+                        El <code>.nfo</code> local es la fuente de metadatos de la biblioteca: el número de
+                        episodio de 3Cat (<code>capitol</code>) no coincide con TVDB ni con TMDB, así que conviene
+                        desactivar los metadatos en línea en la biblioteca.
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatPruneExpired" />
+                        <span>Omitir los vídeos caducados y borrar sus archivos</span>
+                    </label>
+                    <div class="fieldDescription">
+                        3Cat publica una fecha de caducidad (<code>data_caducitat</code>) por vídeo. Pasada esa
+                        fecha el MP4 responde 404, así que deja de escribirse el episodio y se limpian los
+                        archivos anteriores.
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatDeleteObsolete" />
+                        <span>Borrar los archivos que ya no están en el catálogo</span>
+                    </label>
+                    <div class="fieldDescription threeCatWarning">
+                        Elimina cualquier <code>.strm</code>, <code>.nfo</code> o <code>.srt</code> de la carpeta
+                        de la serie que la ejecución no haya escrito. Si el catálogo responde vacío o a medias, la
+                        carpeta se queda vacía. Déjalo desactivado salvo que quieras limpiar a mano.
+                    </div>
+                </div>
+
+                <div class="threeCatActions">
+                    <button is="emby-button" type="submit" class="raised button-submit">
+                        <span>Guardar</span>
+                    </button>
+                    <button is="emby-button" type="button" id="ThreeCatRunNow" class="raised">
+                        <span>Ejecutar ahora</span>
+                    </button>
+                </div>
+
+                <div class="fieldDescription threeCatStatus" id="ThreeCatStatus"></div>
+
+            </form>
+        </div>
+
+        <script type="text/javascript">
+
+            var ThreeCatConfig = {
+                pluginId: 'd8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b',
+                // The pending programs, [Id, Title] as stored in the configuration.
+                programs: [],
+                bound: false
+            };
+
+            function threeCatStatus(message) {
+                document.querySelector('#ThreeCatStatus').textContent = message || '';
+            }
+
+            function threeCatLibraryStatus(message) {
+                document.querySelector('#ThreeCatLibraryStatus').textContent = message || '';
+            }
+
+            function threeCatUrl(method, query) {
+                return ApiClient.getUrl('ThreeCat/' + method, query);
+            }
+
+            // Jellyfin serialises the responses with camelCase names, but the property casing of the
+            // records is not worth relying on: both spellings are looked up.
+            function threeCatField(item, name) {
+                if (item === null || item === undefined) {
+                    return undefined;
+                }
+
+                if (item[name] !== undefined) {
+                    return item[name];
+                }
+
+                return item[name.charAt(0).toUpperCase() + name.slice(1)];
+            }
+
+            function threeCatInt(value, fallback) {
+                var parsed = parseInt(value, 10);
+                return isNaN(parsed) ? fallback : parsed;
+            }
+
+            function threeCatElement(tag, className, text) {
+                var element = document.createElement(tag);
+
+                if (className) {
+                    element.className = className;
+                }
+
+                if (text !== undefined && text !== null) {
+                    element.textContent = text;
+                }
+
+                return element;
+            }
+
+            // The API answers with the reason as plain text (or as a problem detail), so the page shows
+            // it instead of a generic failure.
+            function threeCatErrorMessage(reason, fallback) {
+                if (reason) {
+                    var payload = reason.responseJSON;
+                    var message = payload && (payload.message || payload.Message);
+
+                    if (!message && reason.responseText && reason.responseText.indexOf('<') < 0) {
+                        message = reason.responseText;
+                    }
+
+                    if (message) {
+                        message = message.trim().replace(/^"|"$/g, '');
+
+                        if (message.length > 0 && message.length <= 300) {
+                            return message;
+                        }
+                    }
+                }
+
+                return fallback;
+            }
+
+            function threeCatSubtitleCheckboxes() {
+                return Array.prototype.slice.call(
+                    document.querySelectorAll('#ThreeCatConfigPage [data-threecat-lang]'));
+            }
+
+            function threeCatSelectedLanguages() {
+                return threeCatSubtitleCheckboxes()
+                    .filter(function (input) { return input.checked; })
+                    .map(function (input) { return input.getAttribute('data-threecat-lang'); });
+            }
+
+            // The language check boxes only mean something when subtitles are enabled, and they are
+            // ignored while «all languages» is ticked.
+            function threeCatSyncSubtitleControls() {
+                var download = document.querySelector('#ThreeCatWriteSubtitles').checked;
+                var all = document.querySelector('#ThreeCatSubtitleAll').checked;
+                var hint = document.querySelector('#ThreeCatSubtitleHint');
+                var selected = threeCatSelectedLanguages().length;
+
+                document.querySelector('#ThreeCatSubtitleAll').disabled = !download;
+                threeCatSubtitleCheckboxes().forEach(function (input) {
+                    input.disabled = !download || all;
+                });
+
+                if (!download) {
+                    hint.textContent = '';
+                    return;
+                }
+
+                if (!all && selected === 0) {
+                    hint.className = 'fieldDescription threeCatWarning';
+                    hint.textContent = 'Sin ningún idioma marcado no se descargará ningún subtítulo.';
+                    return;
+                }
+
+                hint.className = 'fieldDescription';
+                hint.textContent = all
+                    ? 'Se descargarán todas las pistas que publique 3Cat para cada vídeo.'
+                    : 'Se descargarán las pistas de: ' + threeCatSelectedLanguages().join(', ') + '.';
+            }
+
+            function threeCatRenderPrograms() {
+                var body = document.querySelector('#ThreeCatProgramsBody');
+                var programs = ThreeCatConfig.programs;
+
+                body.innerHTML = '';
+                document.querySelector('#ThreeCatProgramsEmpty').style.display = programs.length === 0 ? '' : 'none';
+
+                programs.forEach(function (program, index) {
+                    var row = document.createElement('tr');
+
+                    row.appendChild(threeCatElement('td', '', program.Title || '(sin título)'));
+
+                    var reference = threeCatElement('td');
+                    reference.appendChild(threeCatElement('span', 'threeCatMono', program.Id));
+                    row.appendChild(reference);
+
+                    var actions = threeCatElement('td');
+                    // A button created after the page was upgraded is not turned into an <emby-button>:
+                    // the class is what gives it the Jellyfin look (see rtveRow in the RTVE plugin).
+                    var remove = threeCatElement('button', 'emby-button raised', 'Quitar');
+                    remove.type = 'button';
+                    remove.addEventListener('click', function () {
+                        ThreeCatConfig.programs.splice(index, 1);
+                        threeCatRenderPrograms();
+                        threeCatStatus('Programa quitado de la lista. Pulsa «Guardar» para aplicarlo.');
+                    });
+                    actions.appendChild(remove);
+                    row.appendChild(actions);
+
+                    body.appendChild(row);
+                });
+            }
+
+            function threeCatAddProgram(programId, title) {
+                var existing = ThreeCatConfig.programs.filter(function (program) {
+                    return program.Id === programId;
+                })[0];
+
+                if (existing) {
+                    // The title of the catalog wins: the series folder follows it.
+                    existing.Title = title;
+                    return false;
+                }
+
+                ThreeCatConfig.programs.push({ Id: programId, Title: title });
+                return true;
+            }
+
+            function threeCatResolve(value) {
+                value = (value || '').trim();
+
+                if (value.length === 0) {
+                    threeCatStatus('Escribe el id del programa o pega la URL de uno de sus vídeos.');
+                    return;
+                }
+
+                Dashboard.showLoadingMsg();
+
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: threeCatUrl('Programs/Resolve', { value: value }),
+                    dataType: 'json'
+                }).then(function (result) {
+                    Dashboard.hideLoadingMsg();
+
+                    var programId = threeCatField(result, 'programId');
+                    var title = threeCatField(result, 'title') || programId;
+                    var added = threeCatAddProgram(programId, title);
+
+                    threeCatRenderPrograms();
+                    document.querySelector('#ThreeCatProgramInput').value = '';
+
+                    threeCatStatus('«' + title + '» ' + (added ? 'añadido' : 'actualizado') + ' ('
+                        + threeCatField(result, 'videos') + ' vídeos). '
+                        + (threeCatField(result, 'message') || '')
+                        + ' Pulsa «Guardar» para aplicarlo.');
+                }, function (reason) {
+                    Dashboard.hideLoadingMsg();
+                    threeCatStatus(threeCatErrorMessage(
+                        reason,
+                        'No se pudo resolver «' + value + '». Comprueba el id o la URL en 3Cat.'));
+                });
+            }
+
+            function threeCatCheckPath() {
+                var path = document.querySelector('#ThreeCatDestinationPath').value.trim();
+
+                if (path.length === 0) {
+                    threeCatLibraryStatus('Escribe la carpeta de destino antes de comprobarla.');
+                    return;
+                }
+
+                Dashboard.showLoadingMsg();
+
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: threeCatUrl('Path/Check', { path: path }),
+                    dataType: 'json'
+                }).then(function (result) {
+                    Dashboard.hideLoadingMsg();
+
+                    var valid = threeCatField(result, 'isValid');
+                    var writable = threeCatField(result, 'writable');
+                    var exists = threeCatField(result, 'exists');
+                    var suggestions = threeCatField(result, 'suggestions') || [];
+                    var text;
+
+                    if (valid && writable) {
+                        text = exists
+                            ? 'La carpeta existe y es escribible: ' + threeCatField(result, 'path')
+                            : 'La carpeta todavía no existe, pero se puede crear: ' + threeCatField(result, 'path');
+                    } else {
+                        text = threeCatField(result, 'error') || 'La carpeta no se puede usar.';
+
+                        if (suggestions.length > 0) {
+                            text += ' Carpetas escribibles: ' + suggestions.slice(0, 5).join(', ') + '.';
+                        }
+                    }
+
+                    threeCatLibraryStatus(text);
+                }, function (reason) {
+                    Dashboard.hideLoadingMsg();
+                    threeCatLibraryStatus(threeCatErrorMessage(reason, 'No se pudo comprobar la carpeta.'));
+                });
+            }
+
+            function threeCatCreateLibrary() {
+                var path = document.querySelector('#ThreeCatDestinationPath').value.trim();
+
+                if (path.length === 0) {
+                    threeCatLibraryStatus('Escribe la carpeta de destino antes de crear la biblioteca.');
+                    return;
+                }
+
+                Dashboard.showLoadingMsg();
+
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: threeCatUrl('Library/Create', { path: path, name: '3Cat' }),
+                    dataType: 'json'
+                }).then(function (result) {
+                    Dashboard.hideLoadingMsg();
+
+                    var message = threeCatField(result, 'message') || '';
+                    var libraryPaths = threeCatField(result, 'libraryPaths') || [];
+
+                    if (threeCatField(result, 'success') && libraryPaths.length > 0) {
+                        message += ' Carpetas indexadas: ' + libraryPaths.join(', ') + '.';
+                    }
+
+                    threeCatLibraryStatus(message);
+                }, function (reason) {
+                    Dashboard.hideLoadingMsg();
+                    threeCatLibraryStatus(threeCatErrorMessage(reason, 'No se pudo crear la biblioteca.'));
+                });
+            }
+
+            function threeCatLoad() {
+                Dashboard.showLoadingMsg();
+
+                ApiClient.getPluginConfiguration(ThreeCatConfig.pluginId).then(function (config) {
+                    var programs = threeCatField(config, 'programs') || [];
+
+                    ThreeCatConfig.programs = programs.map(function (program) {
+                        return {
+                            Id: threeCatField(program, 'id') || '',
+                            Title: threeCatField(program, 'title') || ''
+                        };
+                    });
+
+                    document.querySelector('#ThreeCatDestinationPath').value =
+                        threeCatField(config, 'destinationPath') || '';
+                    document.querySelector('#ThreeCatRefreshInterval').value =
+                        threeCatInt(threeCatField(config, 'refreshIntervalHours'), 12);
+                    document.querySelector('#ThreeCatMaxItems').value =
+                        threeCatInt(threeCatField(config, 'maxItemsPerProgram'), 0);
+                    document.querySelector('#ThreeCatWriteNfo').checked =
+                        threeCatField(config, 'writeNfo') !== false;
+                    document.querySelector('#ThreeCatWriteSubtitles').checked =
+                        threeCatField(config, 'writeSubtitles') !== false;
+                    document.querySelector('#ThreeCatPruneExpired').checked =
+                        threeCatField(config, 'pruneExpired') !== false;
+                    document.querySelector('#ThreeCatDeleteObsolete').checked =
+                        threeCatField(config, 'deleteObsolete') === true;
+                    document.querySelector('#ThreeCatSubtitleAll').checked =
+                        threeCatField(config, 'downloadAllSubtitleLanguages') === true;
+
+                    var languages = threeCatField(config, 'subtitleLanguages') || ['ca'];
+
+                    threeCatSubtitleCheckboxes().forEach(function (input) {
+                        input.checked = languages.indexOf(input.getAttribute('data-threecat-lang')) >= 0;
+                    });
+
+                    threeCatRenderPrograms();
+                    threeCatSyncSubtitleControls();
+                    threeCatStatus('');
+                    Dashboard.hideLoadingMsg();
+                }, function () {
+                    Dashboard.hideLoadingMsg();
+                    threeCatStatus('No se pudo cargar la configuración del plugin.');
+                });
+            }
+
+            // The configuration object comes from getPluginConfiguration, which serialises the C#
+            // properties in camelCase («programs», «destinationPath»); threeCatField accepts both
+            // casings when reading. Saving intentionally assigns the C# property names: the server
+            // deserialises the plugin configuration with a case-insensitive binder, so «Programs»
+            // lands on the same property as «programs» and the saved JSON stays stable.
+            function threeCatSave() {
+                return ApiClient.getPluginConfiguration(ThreeCatConfig.pluginId).then(function (config) {
+                    config.Programs = ThreeCatConfig.programs.map(function (program) {
+                        return { Id: program.Id, Title: program.Title };
+                    });
+                    config.DestinationPath = document.querySelector('#ThreeCatDestinationPath').value.trim();
+                    config.RefreshIntervalHours = threeCatInt(
+                        document.querySelector('#ThreeCatRefreshInterval').value, 12);
+                    config.MaxItemsPerProgram = threeCatInt(
+                        document.querySelector('#ThreeCatMaxItems').value, 0);
+                    config.SubtitleLanguages = threeCatSelectedLanguages();
+                    config.DownloadAllSubtitleLanguages =
+                        document.querySelector('#ThreeCatSubtitleAll').checked;
+                    config.WriteNfo = document.querySelector('#ThreeCatWriteNfo').checked;
+                    config.WriteSubtitles = document.querySelector('#ThreeCatWriteSubtitles').checked;
+                    config.PruneExpired = document.querySelector('#ThreeCatPruneExpired').checked;
+                    config.DeleteObsolete = document.querySelector('#ThreeCatDeleteObsolete').checked;
+
+                    return ApiClient.updatePluginConfiguration(ThreeCatConfig.pluginId, config).then(
+                        function (result) {
+                            // The scheduled task reads its triggers from the saved configuration.
+                            return ApiClient.ajax({
+                                type: 'POST',
+                                url: threeCatUrl('Triggers')
+                            }).then(
+                                function () { return result; },
+                                function () { return result; });
+                        });
+                });
+            }
+
+            function threeCatRunNow() {
+                Dashboard.showLoadingMsg();
+
+                threeCatSave().then(function () {
+                    return ApiClient.ajax({
+                        type: 'POST',
+                        url: threeCatUrl('Refresh')
+                    });
+                }).then(function () {
+                    Dashboard.hideLoadingMsg();
+                    threeCatStatus('Tarea iniciada. Sigue el progreso en Panel → Tareas programadas → «3Cat».');
+                }, function (reason) {
+                    Dashboard.hideLoadingMsg();
+                    threeCatStatus(threeCatErrorMessage(reason, 'No se pudo iniciar la tarea.'));
+                });
+            }
+
+            function threeCatBind() {
+                if (ThreeCatConfig.bound) {
+                    return;
+                }
+
+                ThreeCatConfig.bound = true;
+
+                document.querySelector('#ThreeCatAddProgram').addEventListener('click', function () {
+                    threeCatResolve(document.querySelector('#ThreeCatProgramInput').value);
+                });
+
+                document.querySelector('#ThreeCatProgramInput').addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        threeCatResolve(this.value);
+                    }
+                });
+
+                document.querySelector('#ThreeCatCheckPath').addEventListener('click', threeCatCheckPath);
+                document.querySelector('#ThreeCatCreateLibrary').addEventListener('click', threeCatCreateLibrary);
+                document.querySelector('#ThreeCatRunNow').addEventListener('click', threeCatRunNow);
+
+                document.querySelector('#ThreeCatWriteSubtitles')
+                    .addEventListener('change', threeCatSyncSubtitleControls);
+                document.querySelector('#ThreeCatSubtitleAll')
+                    .addEventListener('change', threeCatSyncSubtitleControls);
+                threeCatSubtitleCheckboxes().forEach(function (input) {
+                    input.addEventListener('change', threeCatSyncSubtitleControls);
+                });
+
+                document.querySelector('#ThreeCatConfigForm').addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    Dashboard.showLoadingMsg();
+
+                    threeCatSave().then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                        threeCatStatus('Configuración guardada. '
+                            + ThreeCatConfig.programs.length + ' programa(s) en la lista.');
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        threeCatStatus('No se pudo guardar la configuración.');
+                    });
+
+                    return false;
+                });
+            }
+
+            function threeCatInit() {
+                threeCatBind();
+                threeCatLoad();
+            }
+
+            document.querySelector('#ThreeCatConfigPage').addEventListener('pageshow', threeCatInit);
+
+            // Fallback for the case where the page is loaded directly instead of through the view manager.
+            setTimeout(function () {
+                var page = document.querySelector('#ThreeCatConfigPage');
+
+                if (page && !ThreeCatConfig.bound && page.offsetParent !== null) {
+                    threeCatInit();
+                }
+            }, 100);
+
+        </script>
+
+    </div>
+</body>
+</html>

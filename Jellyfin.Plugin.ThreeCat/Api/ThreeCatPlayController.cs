@@ -1,0 +1,236 @@
+using Jellyfin.Plugin.ThreeCat.Configuration;
+using Jellyfin.Plugin.ThreeCat.Library;
+using Jellyfin.Plugin.ThreeCat.Tasks;
+using Jellyfin.Plugin.ThreeCat.ThreeCat;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+
+namespace Jellyfin.Plugin.ThreeCat.Api;
+
+/// <summary>
+/// Endpoints used by the configuration page.
+/// </summary>
+[ApiController]
+[Authorize]
+[Route("ThreeCat")]
+public sealed class ThreeCatPlayController : ControllerBase
+{
+    private readonly ThreeCatClient _client;
+    private readonly ITaskManager _taskManager;
+    private readonly ILibraryManager _libraryManager;
+    private readonly ILibraryMonitor _libraryMonitor;
+    private readonly ILogger<ThreeCatPlayController> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ThreeCatPlayController"/> class.
+    /// </summary>
+    /// <param name="client">3Cat API client.</param>
+    /// <param name="taskManager">Task manager.</param>
+    /// <param name="libraryManager">Library manager.</param>
+    /// <param name="libraryMonitor">Library monitor, used to make Jellyfin look at the new folder.</param>
+    /// <param name="logger">Logger.</param>
+    public ThreeCatPlayController(
+        ThreeCatClient client,
+        ITaskManager taskManager,
+        ILibraryManager libraryManager,
+        ILibraryMonitor libraryMonitor,
+        ILogger<ThreeCatPlayController> logger)
+    {
+        _client = client;
+        _taskManager = taskManager;
+        _libraryManager = libraryManager;
+        _libraryMonitor = libraryMonitor;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves a program reference (a <c>programatv_id</c> or the URL of any of its videos) and
+    /// reports its title and how many videos the catalog publishes.
+    /// </summary>
+    /// <remarks>
+    /// 3Cat does not publish a search endpoint, so the page validates what the user types with this
+    /// call instead of offering a list of programs.
+    /// </remarks>
+    /// <param name="value">Program id or URL of one of its videos.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The resolved program, or 404 when the reference does not point at any program.</returns>
+    [HttpGet("Programs/Resolve")]
+    public async Task<ActionResult<ThreeCatProgramSummary>> ResolveAsync(
+        [FromQuery] string? value,
+        CancellationToken cancellationToken)
+    {
+        var reference = ThreeCatClient.NormalizeReference(value);
+        if (reference.Length == 0)
+        {
+            return BadRequest("Escribe el id del programa o pega la URL de cualquiera de sus vídeos.");
+        }
+
+        var page = await _client
+            .GetProgramVideosAsync(reference, maxItems: 0, cancellationToken)
+            .ConfigureAwait(false);
+
+        var programId = reference;
+
+        // The reference may be the id of a video instead of the programatv_id: the catalog comes back
+        // empty and the media endpoint publishes informacio.programa_id.
+        if (page.Items.Count == 0)
+        {
+            var media = await _client.GetMediaAsync(reference, cancellationToken).ConfigureAwait(false);
+            var resolved = media?.Info?.ProgramId;
+
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                _logger.LogWarning("3Cat: «{Reference}» no apunta a ningún programa", value);
+
+                return NotFound(
+                    $"«{value?.Trim()}» no devuelve ningún vídeo. Comprueba el id del programa en 3Cat "
+                    + "o pega la URL de cualquiera de sus vídeos.");
+            }
+
+            programId = resolved;
+            page = await _client
+                .GetProgramVideosAsync(programId, maxItems: 0, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (page.Items.Count == 0)
+        {
+            return NotFound($"El programa {programId} no publica ningún vídeo disponible ahora mismo.");
+        }
+
+        var videos = page.Items.Count(video => !string.IsNullOrWhiteSpace(video.Id));
+        var message = page.Truncated
+            ? $"Se han leído {videos} de {page.TotalItems} vídeos ({page.TotalPages} páginas)."
+            : $"El catálogo publica {videos} vídeos.";
+
+        return Ok(new ThreeCatProgramSummary(
+            programId,
+            PickTitle(programId, page.Items),
+            videos,
+            page.TotalItems,
+            page.TotalPages,
+            page.Truncated,
+            message));
+    }
+
+    /// <summary>
+    /// Checks that the destination folder exists and is writable by the Jellyfin process.
+    /// </summary>
+    /// <param name="path">Folder to check.</param>
+    /// <returns>The result of the check.</returns>
+    [HttpGet("Path/Check")]
+    public ActionResult<LibraryPathStatus> CheckPath([FromQuery] string? path)
+        => Ok(LibraryPath.Check(path));
+
+    /// <summary>
+    /// Creates a «Programas de TV» library that points at the destination folder, or adds the folder
+    /// to the library that already has that name.
+    /// </summary>
+    /// <remarks>
+    /// The status is always returned with HTTP 200 and a <c>success</c> flag, so the configuration page
+    /// can show the reason of a rejection instead of a generic error.
+    /// </remarks>
+    /// <param name="path">Destination folder; the configured one when omitted.</param>
+    /// <param name="name">Library name; «3Cat» when omitted.</param>
+    /// <returns>The result of the operation.</returns>
+    [HttpPost("Library/Create")]
+    public ActionResult<LibraryProvisionStatus> CreateLibrary(
+        [FromQuery] string? path,
+        [FromQuery] string? name)
+    {
+        var configuration = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        var target = string.IsNullOrWhiteSpace(path) ? configuration.DestinationPath : path;
+
+        var status = LibraryProvisioner.Provision(_libraryManager, target, name, _logger, _libraryMonitor);
+
+        if (status.Success)
+        {
+            _logger.LogInformation(
+                "3Cat: biblioteca {Library} → {Outcome} ({Message})",
+                status.LibraryName,
+                status.Outcome,
+                status.Message);
+        }
+        else
+        {
+            _logger.LogWarning("3Cat: no se pudo preparar la biblioteca: {Message}", status.Message);
+        }
+
+        return Ok(status);
+    }
+
+    /// <summary>
+    /// Applies the configured refresh interval to the scheduled task.
+    /// </summary>
+    /// <returns>No content.</returns>
+    [HttpPost("Triggers")]
+    public ActionResult ApplyTriggers()
+    {
+        var configuration = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        ThreeCatTriggerScheduler.Apply(_taskManager, configuration, _logger);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Starts the refresh task immediately.
+    /// </summary>
+    /// <remarks>
+    /// The stock <c>ScheduledTasks/Running/{id}</c> endpoint looks the task up by its GUID, not by its
+    /// key, so the configuration page cannot use it directly without a round trip.
+    /// </remarks>
+    /// <returns>No content when the task was queued; 404 when it is not registered yet.</returns>
+    [HttpPost("Refresh")]
+    public ActionResult RunNow()
+    {
+        var worker = _taskManager.ScheduledTasks
+            .FirstOrDefault(task => task.ScheduledTask is ThreeCatRefreshTask);
+
+        if (worker is null)
+        {
+            _logger.LogWarning("3Cat: la tarea programada no está registrada; no se puede ejecutar");
+            return NotFound("La tarea programada no está registrada todavía. Reinicia Jellyfin.");
+        }
+
+        _ = _taskManager.Execute(worker, new TaskOptions());
+        return NoContent();
+    }
+
+    private static string PickTitle(string programId, IReadOnlyList<ThreeCatVideo> videos)
+    {
+        var title = videos
+            .SelectMany(video => video.Programs ?? [])
+            .Select(program => program.Title)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+        title ??= videos
+            .Select(video => video.Bands?
+                .OrderByDescending(band => band.Main)
+                .Select(band => band.Description)
+                .FirstOrDefault(description => !string.IsNullOrWhiteSpace(description)))
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+        return string.IsNullOrWhiteSpace(title) ? programId : title!.Trim();
+    }
+}
+
+/// <summary>
+/// Result of resolving a program reference.
+/// </summary>
+/// <param name="ProgramId">Program id (<c>programatv_id</c>) the catalog has to be read from.</param>
+/// <param name="Title">Title of the program, used as the name of the series folder.</param>
+/// <param name="Videos">Videos read from the catalog.</param>
+/// <param name="TotalItems">Videos the catalog reports.</param>
+/// <param name="TotalPages">Pages the catalog reports.</param>
+/// <param name="Truncated">Whether the read stopped before the last page.</param>
+/// <param name="Message">Message shown to the user.</param>
+public sealed record ThreeCatProgramSummary(
+    string ProgramId,
+    string Title,
+    int Videos,
+    int TotalItems,
+    int TotalPages,
+    bool Truncated,
+    string Message);

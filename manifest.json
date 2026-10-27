@@ -1,0 +1,11 @@
+[
+  {
+    "guid": "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b",
+    "name": "3Cat",
+    "description": "Genera una biblioteca de series a partir del catálogo a la carta de 3Cat (.strm + metadatos + subtítulos).",
+    "overview": "Replica el catálogo de 3Cat como biblioteca de series de Jellyfin mediante archivos .strm, con metadatos .nfo, carátulas y subtítulos SRT convertidos desde los WebVTT originales.",
+    "owner": "Lowitle",
+    "category": "General",
+    "versions": []
+  }
+]
