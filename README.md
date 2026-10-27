@@ -21,6 +21,24 @@ https://raw.githubusercontent.com/Lowitle/Jellyfin-3CAT/main/manifest.json
 Instalación manual: copia el contenido de `threecat_<versión>.zip` en
 `plugins/3Cat_<versión>/` y reinicia Jellyfin.
 
+## Si el plugin no aparece en el catálogo
+
+El servidor descarta cualquier versión del manifiesto cuyo `targetAbi` sea mayor que su propia versión
+(lo hace `InstallationManager.GetAvailablePackages` en Jellyfin 10.11), así que necesitas **Jellyfin 10.11
+o superior**. Si ya estás en 10.11, revisa en este orden:
+
+1. **Pestaña equivocada**: la página de plugins se abre en *Instalados*, y 3Cat, al no estar instalado,
+   solo sale al pulsar *Ver todo* o al abrir `…/web/index.html#/dashboard/plugins.html?status=All`.
+2. **Caché del navegador**: el catálogo cachea `GET /Packages` durante quince minutos; reiniciar Jellyfin
+   no vacía esa caché. Recarga con `Ctrl+F5` o abre la página en una pestaña nueva.
+3. **Repositorio guardado y habilitado**: *Panel de control → Plugins → Repositorios* debe listar la URL
+   de arriba (`GET /Repositories`).
+4. **Sin salida a internet o DNS filtrado**: el log del servidor muestra `Cannot locate the plugin
+   manifest` o `Failed to deserialize the plugin manifest`. Con una API key de administrador,
+   `GET /Packages` debe incluir `guid: d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b`.
+
+Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual no depende del catálogo.
+
 ## Características
 
 - **Programas configurables**: se indica el `programatv_id` numérico (`119987484`) o la URL de
