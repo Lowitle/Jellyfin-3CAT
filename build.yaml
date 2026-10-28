@@ -1,7 +1,7 @@
 ---
 name: "3Cat"
 guid: "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-version: "1.1.0.0"
+version: "1.2.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Crea una biblioteca de series con el catálogo a la carta de 3Cat (.strm + metadatos + subtítulos)."
@@ -16,6 +16,16 @@ owner: "Lowitle"
 artifacts:
   - "Jellyfin.Plugin.ThreeCat.dll"
 changelog: >
+  1.2.0.0: cada serie se clasifica por el formato bajo el que 3Cat archiva el programa («Sèrie»,
+  «Documental», «Animació», «Cinema», «Concurs»...), que se escribe como primer género del tvshow.nfo
+  por delante de sus temas, así que la biblioteca se filtra por tipo de programa con los filtros
+  nativos de Jellyfin y sin plugins añadidos. La página de configuración estrena la casilla
+  «Clasificar los programas por su formato» (activada por defecto; desactivada, los géneros vuelven a
+  ser solo los temas de los vídeos) y la tabla del catálogo añade la columna «Categoría», con filtro por
+  categoría, búsqueda por texto y ordenación. 3Cat no publica esa clasificación en ningún endpoint: el
+  plugin barre las facetas format_contingut y tematica del buscador (24 peticiones, cacheadas media
+  hora) y las invierte en una tabla por programatv_id. Si el barrido falla, la serie se escribe con sus
+  temas como hasta ahora, nunca sin géneros.
   1.1.0.0: «Ver todos los programas» abre el catálogo completo de 3Cat en una tabla con búsqueda por
   texto y filtros por tipo, canal, solo con vídeos y ya añadidos, columnas ordenables (nombre, id,
   tipo, canal, idiomas, edad y fecha de publicación), selección de las filas visibles y paginación de

@@ -144,9 +144,17 @@ public sealed partial class ThreeCatSyncService
             return 0;
         }
 
+        // The kind of program goes first in the genres of the series: Jellyfin filters the library by
+        // them, so «Documental» or «Animació» is a filter the user gets for free.
+        var classification = await ClassifyProgramAsync(
+            configuration,
+            programId,
+            usable,
+            cancellationToken).ConfigureAwait(false);
+
         var result = StrmLibrary.Write(
             configuration.DestinationPath,
-            BuildSeriesMetadata(programId, seriesTitle, usable),
+            BuildSeriesMetadata(programId, seriesTitle, classification),
             episodes,
             new LibraryWriteOptions
             {
@@ -177,6 +185,7 @@ public sealed partial class ThreeCatSyncService
 
         return result.FilesWritten;
     }
+
     /// <summary>
     /// Resolves the series title. The catalog publishes the program name in <c>bbands.desc</c> and in
     /// <c>programes_tv.desc</c>; the configured value is only a cache and the last resort.
@@ -193,13 +202,82 @@ public sealed partial class ThreeCatSyncService
             programId);
 
     /// <summary>
-    /// Builds the series metadata. The 3Cat themes («Ficció», «Infantil», «Esports»...) become the
-    /// genres, which is what Jellyfin shows as filters in the library.
+    /// Builds the series metadata. The kind of program 3Cat files the program under («Sèrie»,
+    /// «Documental», «Animació»...) is the first genre, followed by the 3Cat themes of its videos
+    /// («Ficció», «Infantil», «Esports»...): Jellyfin shows the genres as filters in the library.
     /// </summary>
+    /// <param name="programId">3Cat program id.</param>
+    /// <param name="seriesTitle">Series title.</param>
+    /// <param name="classification">Kind of program and genres of the series.</param>
+    /// <returns>The metadata written to the <c>tvshow.nfo</c>.</returns>
     private static LibrarySeries BuildSeriesMetadata(
         string programId,
         string seriesTitle,
-        IReadOnlyList<ThreeCatVideo> videos)
+        ProgramClassification classification)
+        => new()
+        {
+            Title = seriesTitle,
+            ProgramId = programId,
+            Country = "ES",
+            Genres = classification.Genres
+        };
+
+    /// <summary>
+    /// Classifies the program with the formats and themes 3Cat files it under.
+    /// </summary>
+    /// <param name="configuration">Plugin configuration.</param>
+    /// <param name="programId">3Cat program id.</param>
+    /// <param name="videos">Videos of the program.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The kind of program and the genres to write to the <c>tvshow.nfo</c>.</returns>
+    /// <remarks>
+    /// 3Cat publishes no endpoint that names the classification of a program: it is the sweep of the
+    /// facets of the search endpoint, which the client caches for half an hour. A program that appears in
+    /// no known facet, or a sweep that fails, keeps the themes of its videos as genres, so the series is
+    /// never written without genres.
+    /// </remarks>
+    private async Task<ProgramClassification> ClassifyProgramAsync(
+        PluginConfiguration configuration,
+        string programId,
+        IReadOnlyList<ThreeCatVideo> videos,
+        CancellationToken cancellationToken)
+    {
+        var themes = SeriesGenres(videos);
+
+        if (!configuration.ClassifyPrograms)
+        {
+            return new ProgramClassification(null, themes);
+        }
+
+        try
+        {
+            var taxonomy = await _client.GetProgramTaxonomyAsync(cancellationToken).ConfigureAwait(false);
+            taxonomy.TryGetValue(programId, out var facets);
+
+            return ProgramClassifier.Classify(facets?.Formats, facets?.Themes, themes);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "3Cat: no se pudo leer la clasificación del programa {ProgramId}; se escriben solo sus temas como géneros",
+                programId);
+
+            return new ProgramClassification(null, themes);
+        }
+    }
+
+    /// <summary>
+    /// Reads the genres 3Cat publishes per video («Ficció», «Infantil», «Esports»...), which is the
+    /// classification the plugin had before the facets of the catalog were read.
+    /// </summary>
+    /// <param name="videos">Videos of the program.</param>
+    /// <returns>The distinct themes, the main ones when the catalog flags any.</returns>
+    private static List<string> SeriesGenres(IReadOnlyList<ThreeCatVideo> videos)
     {
         var themes = videos
             .SelectMany(video => video.Themes ?? [])
@@ -220,13 +298,7 @@ public sealed partial class ThreeCatSyncService
                 .ToList();
         }
 
-        return new LibrarySeries
-        {
-            Title = seriesTitle,
-            ProgramId = programId,
-            Country = "ES",
-            Genres = genres
-        };
+        return genres;
     }
 
     /// <summary>

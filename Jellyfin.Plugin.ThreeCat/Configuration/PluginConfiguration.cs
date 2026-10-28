@@ -48,6 +48,7 @@ public class PluginConfiguration : BasePluginConfiguration
         DeleteObsolete = false;
         PruneExpired = true;
         MaxItemsPerProgram = 0;
+        ClassifyPrograms = true;
     }
 
     /// <summary>
@@ -120,4 +121,17 @@ public class PluginConfiguration : BasePluginConfiguration
     /// The catalog is read newest first, so a positive value keeps the most recent emissions.
     /// </remarks>
     public int MaxItemsPerProgram { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the programs are classified by the format 3Cat files
+    /// them under («Sèrie», «Documental», «Animació»...) and that kind is written as the first genre of
+    /// the series.
+    /// </summary>
+    /// <remarks>
+    /// Jellyfin shows the genres as filters of the library, so a «Programas de TV» library filtered by
+    /// «Sèrie» or «Documental» works without extra plugins. The classification is a sweep of the facets
+    /// of the 3Cat search endpoint (24 requests, cached half an hour), which is why it can be turned
+    /// off: the series then keep only the themes of their videos as genres.
+    /// </remarks>
+    public bool ClassifyPrograms { get; set; }
 }

@@ -46,10 +46,10 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
   configuración del plugin y se puede editar desde la página de configuración.
 - **Catálogo de programas**: el botón **Ver todos los programas** lee el buscador público de 3Cat
   (`api.3cat.cat/cercador/tot`, 2201 programas en cinco peticiones de 500) y los muestra en una tabla
-  con búsqueda por texto y filtros por tipo, canal, solo con vídeos y ya añadidos, columnas ordenables
-  (nombre, id, tipo, canal, idiomas, edad y fecha de publicación), selección de las filas visibles y
-  paginación de 200 en 200. Los programas web y de radio aparecen marcados pero no se pueden añadir:
-  su catálogo de vídeos responde 404.
+  con búsqueda por texto y filtros por tipo, categoría, canal, solo con vídeos y ya añadidos, columnas
+  ordenables (nombre, id, tipo, categoría, canal, idiomas, edad y fecha de publicación), selección de las
+  filas visibles y paginación de 200 en 200. Los programas web y de radio aparecen marcados pero no se
+  pueden añadir: su catálogo de vídeos responde 404.
 - **Catálogo paginado**: recorre todas las páginas del catálogo (`resposta.paginacio.total_pagines`)
   con `items_pagina=100`, así que no se pierde ninguna emisión.
 - **Series y episodios**: agrupa los vídeos de cada programa en una serie, con temporadas y el número
@@ -60,6 +60,12 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
 - **Metadatos**: `tvshow.nfo` y un `.nfo` por episodio con título, sinopsis, fecha de emisión,
   duración, géneros y temporada/capítulo. El id de 3Cat se escribe como `uniqueid type="threecat"`,
   así que la biblioteca se puede identificar sin depender de TVDB ni de TMDb.
+- **Clasificación por formato**: el formato bajo el que 3Cat archiva cada programa («Sèrie»,
+  «Documental», «Animació», «Cinema», «Concurs»…) se escribe **como primer género** de la serie, delante
+  de sus temas («Ficció», «Esports»…), así que la biblioteca se filtra por tipo de programa con los
+  filtros nativos de Jellyfin y sin plugins añadidos. 3Cat no publica esa clasificación en ningún
+  endpoint: el plugin barre las facetas `format_contingut` y `tematica` del buscador (24 peticiones,
+  cacheadas media hora) y las invierte en una tabla por `programatv_id`.
 - **Carátulas**: descarga `poster.jpg` del programa y `fanart.jpg` desde las imágenes del catálogo
   (`sdom=img`).
 - **Subtítulos** (opcionales): descarga los WebVTT de 3Cat y los convierte a SRT junto a cada episodio
@@ -78,6 +84,7 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
 | **Intervalo de actualización (horas)** | `12` | Periodicidad de la tarea programada «Actualizar 3Cat». La tarea también se lanza al arrancar el servidor. |
 | **Máximo de episodios por programa** | `0` | `0` escribe todos los vídeos del catálogo; un valor positivo se queda con los más recientes. |
 | **Escribir archivos .nfo** | activado | Genera `tvshow.nfo` y un `.nfo` por episodio. Es la fuente de metadatos de la biblioteca. |
+| **Clasificar los programas por su formato** | activado | Escribe el formato de 3Cat («Sèrie», «Documental», «Animació»…) como primer género de la serie y lo muestra en la columna **Categoría** del catálogo, que también se puede filtrar. Desactivado, los géneros son solo los temas de los vídeos y el catálogo no lee las facetas. |
 | **Omitir los vídeos caducados y borrar sus archivos** | activado | Salta los vídeos con `data_caducitat` pasada y limpia lo que ya se hubiera escrito. |
 | **Borrar los archivos que ya no están en el catálogo** | desactivado | Elimina `.strm`/`.nfo`/`.srt` de la carpeta de la serie que la ejecución no haya escrito. Si el catálogo responde vacío, la carpeta se queda vacía: úsalo solo para limpiar a mano. |
 | **Descargar subtítulos** | activado | Descarga **todas** las pistas WebVTT que publique cada vídeo y las convierte a SRT, un archivo por idioma. Casi todo el catálogo llega en catalán; los programas doblados o con audiodescripción añaden más pistas. |
@@ -151,8 +158,9 @@ pwsh ./package.ps1                        # dist/threecat_<versión>.zip
 | `.github/workflows/build.yaml` | push a `main`, pull request o manual | Compila, ejecuta las pruebas, empaqueta y sube el `.zip` como artefacto. |
 | `.github/workflows/release.yaml` | tag `v*` o manual | Comprueba la versión, ejecuta las pruebas, empaqueta, actualiza `manifest.json`, crea la release de GitHub y hace commit del manifiesto. |
 
-Para publicar: sube `Version` en `Directory.Build.props` y en `build.yaml`, crea el tag `v1.0.0.0` y
-haz push del tag.
+Para publicar: sube `Version` en `Directory.Build.props` y en `build.yaml`, crea el tag `v<versión>`
+(por ejemplo `v1.2.0.0`) y haz push del tag. El manifiesto lo actualiza el propio workflow con el
+`checksum` del `.zip` que sube al release.
 
 ## Estructura del repositorio
 
@@ -160,7 +168,7 @@ haz push del tag.
 Jellyfin.Plugin.ThreeCat/
 ├── Api/ThreeCatPlayController.cs        # endpoints REST (Programs/Resolve, Path/Check, Library/Create, Triggers, Refresh)
 ├── Configuration/                       # PluginConfiguration.cs y configPage.html (recurso embebido)
-├── Library/                             # nombres, rutas, .nfo, .strm y alta de la biblioteca
+├── Library/                             # nombres, rutas, .nfo, .strm, clasificación y alta de la biblioteca
 ├── Sync/                                # ThreeCatSyncService*.cs: programas, episodios, subtítulos, carátulas
 ├── Tasks/ThreeCatRefreshTask.cs         # tarea programada «Actualizar 3Cat»
 ├── ThreeCat/                            # cliente HTTP, modelos JSON, convertidores, VTT → SRT

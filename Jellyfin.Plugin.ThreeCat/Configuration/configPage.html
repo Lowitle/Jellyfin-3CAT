@@ -155,6 +155,24 @@
                 opacity: 0.7;
             }
 
+            /* The program names link to their page on 3cat.cat. Jellyfin paints every anchor with the
+               accent blue, and a table of 200 blue titles is unreadable: the link inherits the colour of
+               the row (white-grey, and lighter still on the muted rows) and keeps only the weight and the
+               underline as the sign that it can be clicked. */
+            #ThreeCatConfigPage table.threeCatTable td.threeCatCellTitle a,
+            #ThreeCatConfigPage table.threeCatTable td.threeCatCellTitle a:visited {
+                color: inherit;
+                font-weight: 700;
+                text-decoration: underline;
+                text-underline-offset: 0.18em;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable td.threeCatCellTitle a:hover,
+            #ThreeCatConfigPage table.threeCatTable td.threeCatCellTitle a:focus-visible {
+                color: inherit;
+                text-decoration-thickness: 2px;
+            }
+
             #ThreeCatConfigPage table.threeCatTable .threeCatCellCheck {
                 width: 2.2em;
                 padding-right: 0;
@@ -168,6 +186,10 @@
 
             #ThreeCatConfigPage table.threeCatTable .threeCatCellKind {
                 width: 7.5em;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable .threeCatCellCategory {
+                width: 9em;
             }
 
             #ThreeCatConfigPage table.threeCatTable .threeCatCellDate {
@@ -329,6 +351,18 @@
                     </div>
 
                     <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatClassifyPrograms" />
+                        <span>Clasificar los programas por su formato</span>
+                    </label>
+                    <div class="fieldDescription">
+                        3Cat publica cada programa bajo un formato («Sèrie», «Documental», «Animació», «Cinema»,
+                        «Concurs»…) y un tema («Ficció», «Esports»…). El plugin los lee del buscador de 3Cat y
+                        escribe el formato como primer género de la serie, así que la biblioteca se filtra por
+                        tipo con los filtros de Jellyfin. Desactivado, los géneros son solo los temas de los
+                        vídeos.
+                    </div>
+
+                    <label class="checkboxContainer">
                         <input is="emby-checkbox" type="checkbox" id="ThreeCatPruneExpired" />
                         <span>Omitir los vídeos caducados y borrar sus archivos</span>
                     </label>
@@ -385,6 +419,7 @@
                     // programs already ticked.
                     filter: '',
                     kind: '',
+                    category: '',
                     channel: '',
                     onlyVideo: true,
                     hideAdded: false,
@@ -523,6 +558,13 @@
                 return kind ? 'Web/radio' : '';
             }
 
+            // The kind of program 3Cat files the entry under («Sèrie», «Documental», «Animació»...), which
+            // the server resolves from the facets of the search endpoint and writes as the first genre of
+            // the series. It is empty when the classification is turned off or the sweep failed.
+            function threeCatCatalogCategory(item) {
+                return threeCatClean(threeCatField(item, 'category'));
+            }
+
             function threeCatCatalogChannel(item) {
                 return threeCatClean(threeCatField(item, 'channel'));
             }
@@ -566,6 +608,8 @@
                         return threeCatCatalogId(item);
                     case 'kind':
                         return threeCatCatalogKindLabel(threeCatCatalogKind(item));
+                    case 'category':
+                        return threeCatCatalogCategory(item);
                     case 'channel':
                         return threeCatCatalogChannel(item);
                     case 'published':
@@ -694,6 +738,9 @@
                     if (catalog.kind && threeCatCatalogKind(item) !== catalog.kind) {
                         return false;
                     }
+                    if (catalog.category && threeCatCatalogCategory(item) !== catalog.category) {
+                        return false;
+                    }
                     if (catalog.channel && threeCatCatalogChannel(item) !== catalog.channel) {
                         return false;
                     }
@@ -705,6 +752,7 @@
                         threeCatCatalogTitle(item),
                         id,
                         threeCatCatalogKindLabel(threeCatCatalogKind(item)),
+                        threeCatCatalogCategory(item),
                         threeCatCatalogChannel(item),
                         threeCatCatalogLanguages(item).join(' '),
                         threeCatCatalogAgeRating(item),
@@ -757,11 +805,16 @@
                 return values;
             }
 
-            // The «Tipo» filter is a fixed list, so it survives a page change. The channels come from
-            // the catalog, so one left over from another load would hide every row and the combo could
-            // not even show it.
+            // The «Tipo» filter is a fixed list, so it survives a page change. The categories and the
+            // channels come from the catalog, so one left over from another load would hide every row and
+            // the combo could not even show it.
             function threeCatResetUnavailableFilters() {
                 var catalog = ThreeCatConfig.catalog;
+
+                if (catalog.category
+                    && threeCatCatalogValues(threeCatCatalogCategory).indexOf(catalog.category) < 0) {
+                    catalog.category = '';
+                }
 
                 if (catalog.channel && threeCatCatalogValues(threeCatCatalogChannel).indexOf(catalog.channel) < 0) {
                     catalog.channel = '';
@@ -813,7 +866,7 @@
                 var search = threeCatElement('input', 'emby-input threeCatFilterText');
                 search.type = 'search';
                 search.id = 'ThreeCatCatalogFilter';
-                search.placeholder = 'Nombre, id, canal, idioma…';
+                search.placeholder = 'Nombre, id, tipo, categoría, canal, idioma…';
                 search.value = catalog.filter;
                 search.addEventListener('input', function () {
                     catalog.filter = this.value;
@@ -844,6 +897,24 @@
                         catalog.page = 1;
                         threeCatRenderCatalogRows();
                     })));
+
+                // The «Categoría» filter only makes sense when the server classified the catalog: with
+                // «Clasificar los programas» off the combo would offer nothing but «Todas».
+                var categories = threeCatCatalogValues(threeCatCatalogCategory);
+                if (categories.length) {
+                    bar.appendChild(threeCatFilterField('Categoría', threeCatFilterSelect(
+                        'ThreeCatCatalogCategoryFilter',
+                        catalog.category,
+                        categories.map(function (category) {
+                            return { value: category, label: category };
+                        }),
+                        'Todas las categorías',
+                        function (value) {
+                            catalog.category = value;
+                            catalog.page = 1;
+                            threeCatRenderCatalogRows();
+                        })));
+                }
 
                 bar.appendChild(threeCatFilterField('Canal', threeCatFilterSelect(
                     'ThreeCatCatalogChannelFilter',
@@ -881,11 +952,12 @@
 
                 var clear = threeCatElement('button', 'emby-button raised', 'Limpiar filtros');
                 clear.type = 'button';
-                clear.disabled = !catalog.filter && !catalog.kind && !catalog.channel
+                clear.disabled = !catalog.filter && !catalog.kind && !catalog.category && !catalog.channel
                     && !catalog.hideAdded && catalog.onlyVideo;
                 clear.addEventListener('click', function () {
                     catalog.filter = '';
                     catalog.kind = '';
+                    catalog.category = '';
                     catalog.channel = '';
                     catalog.hideAdded = false;
                     catalog.onlyVideo = true;
@@ -1026,6 +1098,14 @@
                     'threeCatCellKind' + (kindLabel ? '' : ' threeCatMuted'),
                     kindLabel || '—'));
 
+                // The category is the kind of program 3Cat files the entry under, which the series is
+                // tagged with in Jellyfin: an empty one means 3Cat publishes no facet for the program.
+                var category = threeCatCatalogCategory(item);
+                row.appendChild(threeCatElement(
+                    'td',
+                    'threeCatCellCategory' + (category ? '' : ' threeCatMuted'),
+                    category || '—'));
+
                 var channel = threeCatCatalogChannel(item);
                 row.appendChild(threeCatElement('td', channel ? '' : 'threeCatMuted', channel || '—'));
 
@@ -1070,7 +1150,7 @@
 
                     var emptyRow = threeCatElement('tr');
                     var emptyCell = threeCatElement('td', 'threeCatTableEmpty threeCatMuted', emptyText);
-                    emptyCell.colSpan = 8;
+                    emptyCell.colSpan = 9;
                     emptyRow.appendChild(emptyCell);
                     catalog.body.appendChild(emptyRow);
                 } else {
@@ -1257,6 +1337,7 @@
                 headRow.appendChild(threeCatSortableHeader('Nombre', 'title'));
                 headRow.appendChild(threeCatSortableHeader('Id', 'id'));
                 headRow.appendChild(threeCatSortableHeader('Tipo', 'kind'));
+                headRow.appendChild(threeCatSortableHeader('Categoría', 'category'));
                 headRow.appendChild(threeCatSortableHeader('Canal', 'channel'));
                 headRow.appendChild(threeCatSortableHeader('Idiomas', 'languages'));
                 headRow.appendChild(threeCatSortableHeader('Edad', 'ageRating'));
@@ -1436,6 +1517,8 @@
                         threeCatField(config, 'writeNfo') !== false;
                     document.querySelector('#ThreeCatWriteSubtitles').checked =
                         threeCatField(config, 'writeSubtitles') !== false;
+                    document.querySelector('#ThreeCatClassifyPrograms').checked =
+                        threeCatField(config, 'classifyPrograms') !== false;
                     document.querySelector('#ThreeCatPruneExpired').checked =
                         threeCatField(config, 'pruneExpired') !== false;
                     document.querySelector('#ThreeCatDeleteObsolete').checked =
@@ -1467,6 +1550,7 @@
                         document.querySelector('#ThreeCatMaxItems').value, 0);
                     config.WriteNfo = document.querySelector('#ThreeCatWriteNfo').checked;
                     config.WriteSubtitles = document.querySelector('#ThreeCatWriteSubtitles').checked;
+                    config.ClassifyPrograms = document.querySelector('#ThreeCatClassifyPrograms').checked;
                     config.PruneExpired = document.querySelector('#ThreeCatPruneExpired').checked;
                     config.DeleteObsolete = document.querySelector('#ThreeCatDeleteObsolete').checked;
 

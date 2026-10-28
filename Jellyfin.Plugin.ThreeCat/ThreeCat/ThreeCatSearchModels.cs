@@ -129,6 +129,11 @@ public sealed class ThreeCatSearchProgram
 /// Whether the catalog of the program can be read. The web and radio programs of 3Cat have no videos,
 /// so the page can hide them instead of offering a program that would write an empty series.
 /// </param>
+/// <param name="Category">
+/// Kind of program 3Cat files it under («Sèrie», «Documental», «Animació»...), or <c>null</c> when the
+/// classification is turned off or the program appears in no known facet. It is the first genre of the
+/// series, so the value the page shows is the value the library filters by.
+/// </param>
 public sealed record ThreeCatCatalogProgram(
     string Id,
     string Title,
@@ -138,4 +143,5 @@ public sealed record ThreeCatCatalogProgram(
     IReadOnlyList<string> Languages,
     string? AgeRating,
     string? Published,
-    bool HasVideo);
+    bool HasVideo,
+    string? Category = null);

@@ -125,7 +125,9 @@ public sealed class ThreeCatPlayController : ControllerBase
     /// the server. This endpoint reads every page of the search endpoint (five requests of 500 programs)
     /// and returns the flat list, which the page then filters, sorts and pages in the browser. The web and
     /// radio programs are included and flagged with <see cref="ThreeCatCatalogProgram.HasVideo"/> =
-    /// <c>false</c>, so the page is the one that hides them.
+    /// <c>false</c>, so the page is the one that hides them. With <c>ClassifyPrograms</c> on, each program
+    /// is also tagged with the kind 3Cat files it under («Sèrie», «Documental»...) and the page can filter
+    /// by it; a sweep that fails only leaves the programs without a category.
     /// </remarks>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Every program of the catalog.</returns>
@@ -133,9 +135,46 @@ public sealed class ThreeCatPlayController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<ThreeCatCatalogProgram>>> ListAllProgramsAsync(
         CancellationToken cancellationToken)
     {
-        var programs = await _client.ListAllProgramsAsync(cancellationToken).ConfigureAwait(false);
+        var taxonomy = await ReadTaxonomyAsync(cancellationToken).ConfigureAwait(false);
+        var programs = await _client.ListAllProgramsAsync(taxonomy, cancellationToken).ConfigureAwait(false);
 
         return Ok(programs);
+    }
+
+    /// <summary>
+    /// Reads the classification of the catalog, or <c>null</c> when it is turned off or 3Cat does not
+    /// answer the facets.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The facets of each program, keyed by <c>programatv_id</c>.</returns>
+    /// <remarks>
+    /// The catalog is more important than its classification: a sweep that fails (24 requests) must not
+    /// leave the page without programs, so the failures are logged and the page falls back to a catalog
+    /// without categories.
+    /// </remarks>
+    private async Task<IReadOnlyDictionary<string, ThreeCatProgramTaxonomy>?> ReadTaxonomyAsync(
+        CancellationToken cancellationToken)
+    {
+        var configuration = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        if (!configuration.ClassifyPrograms)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await _client.GetProgramTaxonomyAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "3Cat: no se pudo leer la clasificación de los programas del catálogo");
+
+            return null;
+        }
     }
 
     /// <summary>

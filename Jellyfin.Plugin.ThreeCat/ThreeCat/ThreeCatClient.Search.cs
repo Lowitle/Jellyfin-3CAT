@@ -1,4 +1,5 @@
 using System.Globalization;
+using Jellyfin.Plugin.ThreeCat.Library;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.ThreeCat.ThreeCat;
@@ -85,7 +86,47 @@ public sealed partial class ThreeCatClient
     /// instead of reading the same five pages at the same time, and a load that comes back empty is not
     /// cached, so a hiccup of 3Cat is retried on the next request.
     /// </remarks>
-    public async Task<IReadOnlyList<ThreeCatCatalogProgram>> ListAllProgramsAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<ThreeCatCatalogProgram>> ListAllProgramsAsync(CancellationToken cancellationToken)
+        => ListAllProgramsAsync(null, cancellationToken);
+
+    /// <summary>
+    /// Reads the whole program catalog of 3Cat and tags each program with the kind 3Cat files it under.
+    /// </summary>
+    /// <param name="taxonomy">
+    /// Formats and themes of each program, keyed by <c>programatv_id</c>, or <c>null</c> to leave the
+    /// programs unclassified.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Every program of the catalog, with <see cref="ThreeCatCatalogProgram.Category"/> filled.</returns>
+    /// <remarks>
+    /// The catalog itself is cached without the category and the classification is applied on the way
+    /// out: the facets of a program last longer than the catalog, so a catalog read again is classified
+    /// with the table already in memory instead of sweeping the facets once more.
+    /// </remarks>
+    public async Task<IReadOnlyList<ThreeCatCatalogProgram>> ListAllProgramsAsync(
+        IReadOnlyDictionary<string, ThreeCatProgramTaxonomy>? taxonomy,
+        CancellationToken cancellationToken)
+    {
+        var programs = await ListProgramsAsync(cancellationToken).ConfigureAwait(false);
+
+        if (taxonomy is not { Count: > 0 })
+        {
+            return programs;
+        }
+
+        return programs
+            .Select(program => taxonomy.TryGetValue(program.Id, out var facets)
+                ? program with { Category = ProgramClassifier.Classify(facets.Formats, facets.Themes, null).Kind }
+                : program)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Reads the catalog itself, cached for <see cref="ProgramCacheDuration"/>.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The programs of the catalog, without their category.</returns>
+    private async Task<IReadOnlyList<ThreeCatCatalogProgram>> ListProgramsAsync(CancellationToken cancellationToken)
     {
         var cached = _programCache;
         if (IsFresh(cached))

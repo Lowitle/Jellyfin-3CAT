@@ -35,6 +35,7 @@ Después dispara un escaneo de biblioteca (`ValidateMediaLibrary`). Tarea progra
 - **Numeración:** usar `capitol` de 3Cat como número de episodio (`S01E<capitol>`), porque es numeración propia (no casa con TVDB). Metadatos online desactivados para esa biblioteca; títulos desde `.nfo`.
 - **Subtítulos:** convertir el VTT (sucio) a SRT con las 6 reglas: descartar cabeceras/Region/NOTE, punto a coma, solo el primer token tras `-->`, quitar marcado y entidades, no escribir líneas vacías, renumerar. Salida idéntica a la del script de producción.
 - **Idioma del audio:** el MP4 trae la pista etiquetada `eng` aunque es catalán; con `.strm` no se puede reetiquetar (se documenta).
+- **Clasificación por formato:** 3Cat no publica el formato del programa en el catálogo ni en el detalle, solo en las facetas del buscador (`api.3cat.cat/cercador/tot?facetes=format_contingut,tematica&filtres=...`). Esas facetas se barren una vez (24 peticiones, caché 30 min), se invierten en `programatv_id → formatos/temas` y el formato se escribe como **primer género** del `tvshow.nfo`, delante de los temas. Es una capa opcional sobre el catálogo: si el barrido falla, la serie queda sin clasificar en vez de romper la sincronización.
 - **Config UI:** lista de `programatv_id`, carpeta destino, intervalo de refresco, idioma de subtítulos, botón "actualizar ahora".
 
 ## Entorno de destino
