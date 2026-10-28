@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>Jellyfin.Plugin.ThreeCat.CatalogDump</RootNamespace>
+    <AssemblyName>Jellyfin.Plugin.ThreeCat.CatalogDump</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- Developer utility: it is not part of the plugin package. -->
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- The tool runs on whatever runtime is installed: a workstation with only the SDK of the next
+         major version must be able to run it. The plugin itself keeps targeting net9.0. -->
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Jellyfin.Plugin.ThreeCat\Jellyfin.Plugin.ThreeCat.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The plugin excludes the runtime of Jellyfin.Controller (Jellyfin provides it), so the console
+         application brings its own logging stack. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

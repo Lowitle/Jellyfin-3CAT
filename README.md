@@ -21,6 +21,19 @@ https://raw.githubusercontent.com/Lowitle/Jellyfin-3CAT/main/manifest.json
 Instalación manual: copia el contenido de `threecat_<versión>.zip` en
 `plugins/3Cat_<versión>/` y reinicia Jellyfin.
 
+### Quién actualiza el plugin
+
+El plugin no se actualiza a sí mismo. Es Jellyfin quien compara este `manifest.json` con la versión
+instalada y, cuando el manifiesto publica una superior, la instala desde la tarea programada
+**Actualizar plugins** (`PluginUpdates`: al arrancar y cada 24 horas). Por eso una copia manual con el
+mismo número de versión se queda como está, mientras que una copia manual de una versión **anterior**
+a la publicada desaparece en el siguiente arranque. Para que no se actualice sola:
+
+- **Panel de control → Tareas programadas → Actualizar plugins**: desactívala (o quítale los
+  disparadores). El catálogo sigue ofreciendo el botón de actualizar, pero nada se instala sin pulsarlo.
+- O quita el repositorio en **Panel de control → Plugins → Repositorios**: sin manifiesto no hay
+  actualizaciones que ofrecer.
+
 ## Si el plugin no aparece en el catálogo
 
 El servidor descarta cualquier versión del manifiesto cuyo `targetAbi` sea mayor que su propia versión

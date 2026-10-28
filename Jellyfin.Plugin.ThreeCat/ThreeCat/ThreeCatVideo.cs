@@ -113,6 +113,7 @@ public sealed class ThreeCatVideo
     /// build the SX3 rails, so it tells a children's program from the rest without any extra request.
     /// </remarks>
     [JsonPropertyName("targets")]
+    [JsonConverter(typeof(ThreeCatTargetsConverter))]
     public ThreeCatTargets? Targets { get; set; }
 
     /// <summary>
@@ -123,6 +124,7 @@ public sealed class ThreeCatVideo
     /// is still a children's program.
     /// </remarks>
     [JsonPropertyName("canals")]
+    [JsonConverter(typeof(ThreeCatVideoChannelsConverter))]
     public ThreeCatVideoChannels? Channels { get; set; }
 
     /// <summary>

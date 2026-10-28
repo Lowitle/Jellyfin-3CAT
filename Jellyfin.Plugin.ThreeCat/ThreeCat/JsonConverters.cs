@@ -180,3 +180,117 @@ public sealed class FlexibleStringConverter : JsonConverter<string?>
         }
     }
 }
+
+/// <summary>
+/// Reads the <c>targets</c> member of a video. The catalog of <c>api.3cat.cat/videos</c> publishes it as a
+/// bare array of labelled values (<c>[ { "id": "PUT_INF", "desc": "Infantil" } ]</c>), and some feeds wrap
+/// it in an object with a single key (<c>{ "target": [ ... ] }</c>), so both shapes fill the same model.
+/// </summary>
+public sealed class ThreeCatTargetsConverter : JsonConverter<ThreeCatTargets>
+{
+    /// <inheritdoc />
+    public override ThreeCatTargets? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var targets = LabelledListReader.Read(ref reader, "target", options);
+
+        return targets is null ? null : new ThreeCatTargets { Targets = targets };
+    }
+
+    /// <inheritdoc />
+    public override void Write(Utf8JsonWriter writer, ThreeCatTargets value, JsonSerializerOptions options)
+        => JsonSerializer.Serialize(writer, value.Targets, options);
+}
+
+/// <summary>
+/// Reads the <c>canals</c> member of a video, published as a bare array of labelled values
+/// (<c>[ { "id": "PUC_S3", "desc": "Super3" } ]</c>) and, in some feeds, as
+/// <c>{ "canal": [ ... ] }</c>.
+/// </summary>
+public sealed class ThreeCatVideoChannelsConverter : JsonConverter<ThreeCatVideoChannels>
+{
+    /// <inheritdoc />
+    public override ThreeCatVideoChannels? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var channels = LabelledListReader.Read(ref reader, "canal", options);
+
+        return channels is null ? null : new ThreeCatVideoChannels { Channels = channels };
+    }
+
+    /// <inheritdoc />
+    public override void Write(Utf8JsonWriter writer, ThreeCatVideoChannels value, JsonSerializerOptions options)
+        => JsonSerializer.Serialize(writer, value.Channels, options);
+}
+
+/// <summary>
+/// Reads a list of labelled values that 3Cat publishes as a bare array, as a single object or as an
+/// object wrapped around one key (<c>{ "target": [ ... ] }</c>).
+/// </summary>
+internal static class LabelledListReader
+{
+    /// <summary>
+    /// Reads the list from the current token of the reader.
+    /// </summary>
+    /// <param name="reader">Reader placed at the value.</param>
+    /// <param name="key">Key of the wrapper object, if the value arrives wrapped.</param>
+    /// <param name="options">Serializer options.</param>
+    /// <returns>The list, or <c>null</c> when the value holds none.</returns>
+    public static List<ThreeCatLabel>? Read(ref Utf8JsonReader reader, string key, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Null:
+                return null;
+
+            case JsonTokenType.StartArray:
+                var list = new List<ThreeCatLabel>();
+                while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                {
+                    var label = JsonSerializer.Deserialize<ThreeCatLabel>(ref reader, options);
+                    if (label is not null)
+                    {
+                        list.Add(label);
+                    }
+                }
+
+                return list;
+
+            case JsonTokenType.StartObject:
+                using (var document = JsonDocument.ParseValue(ref reader))
+                {
+                    var root = document.RootElement;
+                    return Read(root.TryGetProperty(key, out var wrapped) ? wrapped : root, options);
+                }
+
+            default:
+                reader.Skip();
+                return null;
+        }
+    }
+
+    private static List<ThreeCatLabel>? Read(JsonElement element, JsonSerializerOptions options)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Array:
+                var list = new List<ThreeCatLabel>();
+                foreach (var item in element.EnumerateArray())
+                {
+                    var label = item.Deserialize<ThreeCatLabel>(options);
+                    if (label is not null)
+                    {
+                        list.Add(label);
+                    }
+                }
+
+                return list;
+
+            case JsonValueKind.Object:
+                var single = element.Deserialize<ThreeCatLabel>(options);
+                return single is null ? null : [single];
+
+            default:
+                return null;
+        }
+    }
+}
+

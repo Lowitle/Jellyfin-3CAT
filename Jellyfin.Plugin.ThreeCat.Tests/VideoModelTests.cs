@@ -80,6 +80,50 @@ public sealed class VideoModelTests
         Assert.False(ProgramClassifier.IsChildren(null, null));
     }
 
+    [Fact]
+    public void Deserialize_ReadsTheAudienceAndTheChannelsAsTheCatalogPublishesThem()
+    {
+        // This is the shape of api.3cat.cat/videos: a bare array of labelled values, not an object with
+        // a wrapper key. It is the payload that left every program without videos.
+        var video = Deserialize("""
+            {
+              "id": 4534331,
+              "targets": [ { "id": "PUT_INF", "desc": "Infantil", "main": true } ],
+              "canals": [
+                { "id": "PUC_S3_S3", "desc": "S3", "main": false },
+                { "id": "PUC_S3", "desc": "Super3", "main": true }
+              ]
+            }
+            """);
+
+        Assert.Equal("PUT_INF", Assert.Single(video.Targets!.Targets!).Id);
+        Assert.Equal(["PUC_S3_S3", "PUC_S3"], video.Channels!.Channels!.Select(channel => channel.Id));
+        Assert.True(ProgramClassifier.IsChildren(
+            video.Targets!.Targets!.Select(target => target.Id),
+            video.Channels!.Channels!.Select(channel => channel.Id)));
+    }
+
+    [Fact]
+    public void Deserialize_ReadsAnEmptyAudienceAsAnEmptyList()
+    {
+        var video = Deserialize("""{ "id": 1, "targets": [], "canals": [] }""");
+
+        Assert.Empty(video.Targets!.Targets!);
+        Assert.Empty(video.Channels!.Channels!);
+        Assert.False(ProgramClassifier.IsChildren(
+            video.Targets!.Targets!.Select(target => target.Id),
+            video.Channels!.Channels!.Select(channel => channel.Id)));
+    }
+
+    [Fact]
+    public void Deserialize_ReadsAnEmptyTextAsNoAudience()
+    {
+        var video = Deserialize("""{ "id": 1, "targets": "", "canals": "" }""");
+
+        Assert.Null(video.Targets);
+        Assert.Null(video.Channels);
+    }
+
     private static ThreeCatVideo Deserialize(string json)
         => JsonSerializer.Deserialize<ThreeCatVideo>(json, ThreeCatClient.JsonOptions)!;
 }

@@ -6,3 +6,7 @@ using System.Runtime.InteropServices;
 
 // The unit tests exercise the internal helpers (NfoBuilder, HtmlText, ThreeCatClient helpers...).
 [assembly: InternalsVisibleTo("Jellyfin.Plugin.ThreeCat.Tests")]
+
+// The catalog dump of tools/CatalogDump classifies the programs with the very same classifier the
+// synchronization uses, so the dump and the library never disagree.
+[assembly: InternalsVisibleTo("Jellyfin.Plugin.ThreeCat.CatalogDump")]
