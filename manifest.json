@@ -9,7 +9,7 @@
   "versions": [
     {
       "version": "1.2.0.0",
-      "changelog": "3Cat 1.2.0.0",
+      "changelog": "Cada serie se clasifica por el formato bajo el que 3Cat archiva el programa («Sèrie», «Documental», «Animació», «Cinema», «Concurs»...), que se escribe como primer género del tvshow.nfo por delante de sus temas, así que la biblioteca se filtra por tipo de programa con los filtros nativos de Jellyfin y sin plugins añadidos. La página de configuración estrena la casilla «Clasificar los programas por su formato» (activada por defecto; desactivada, los géneros vuelven a ser solo los temas de los vídeos) y la tabla del catálogo añade la columna «Categoría», con filtro por categoría, búsqueda por texto y ordenación por esa columna. 3Cat no publica esa clasificación en ningún endpoint: el plugin barre las facetas format_contingut y tematica del buscador (24 peticiones, cacheadas media hora) y las invierte en una tabla por programatv_id; si el barrido falla, la serie se escribe solo con sus temas, nunca sin géneros.",
       "targetAbi": "10.11.0.0",
       "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.2.0.0/threecat_1.2.0.0.zip",
       "checksum": "AA5722D145AE4EED6FFA73C3C34F0DCD",
