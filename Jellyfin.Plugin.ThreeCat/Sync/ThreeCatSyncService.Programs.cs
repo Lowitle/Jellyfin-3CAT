@@ -64,7 +64,8 @@ public sealed partial class ThreeCatSyncService
 
         var usable = page.Items.Where(video => !string.IsNullOrWhiteSpace(video.Id)).ToList();
         var seriesTitle = ResolveSeriesTitle(usable, reference, programId);
-        var seriesPath = StrmLibrary.SeriesFolder(configuration.DestinationPath, seriesTitle);
+        var root = ResolveRoot(configuration, reference);
+        var seriesPath = StrmLibrary.SeriesFolder(root, seriesTitle);
 
         var seasonNumbered = usable.All(video => video.Season is > 0);
         var episodeNumbered = usable.All(video => video.Chapter is > 0);
@@ -146,15 +147,15 @@ public sealed partial class ThreeCatSyncService
 
         // The kind of program goes first in the genres of the series: Jellyfin filters the library by
         // them, so «Documental» or «Animació» is a filter the user gets for free.
-        var classification = await ClassifyProgramAsync(
+        var (classification, originalTitle) = await ClassifyProgramAsync(
             configuration,
             programId,
             usable,
             cancellationToken).ConfigureAwait(false);
 
         var result = StrmLibrary.Write(
-            configuration.DestinationPath,
-            BuildSeriesMetadata(programId, seriesTitle, classification),
+            root,
+            BuildSeriesMetadata(programId, seriesTitle, classification, originalTitle),
             episodes,
             new LibraryWriteOptions
             {
@@ -171,6 +172,8 @@ public sealed partial class ThreeCatSyncService
 
         var removedExpired = PruneExpiredFiles(result.SeriesPath, seriesTitle, expired);
 
+        RemoveMovedSeries(reference, programId, result.SeriesPath);
+
         _libraryMonitor.ReportFileSystemChanged(result.SeriesPath);
 
         _logger.LogInformation(
@@ -184,6 +187,90 @@ public sealed partial class ThreeCatSyncService
             result.FilesRemoved + removedExpired);
 
         return result.FilesWritten;
+    }
+
+    /// <summary>
+    /// Resolves the folder a program is written to: its own folder when the user assigned the program to
+    /// another library, the destination folder of the plugin otherwise.
+    /// </summary>
+    /// <param name="configuration">Plugin configuration.</param>
+    /// <param name="reference">Program reference.</param>
+    /// <returns>The folder the series folder of the program is written to.</returns>
+    /// <remarks>
+    /// A folder that is not mounted, is not writable or was moved falls back to the destination folder of
+    /// the plugin: one bad assignment must not leave a program without its episodes, and the warning says
+    /// which program and which folder were ignored.
+    /// </remarks>
+    private string ResolveRoot(PluginConfiguration configuration, ThreeCatProgramReference reference)
+    {
+        var fallback = configuration.DestinationPath.Trim();
+        var configured = reference.DestinationPath?.Trim();
+
+        if (string.IsNullOrEmpty(configured))
+        {
+            return fallback;
+        }
+
+        var check = LibraryPath.Check(configured);
+        if (check.IsValid && check.Exists && check.Writable)
+        {
+            return check.Path;
+        }
+
+        _logger.LogWarning(
+            "3Cat: la carpeta «{Path}» asignada al programa {ProgramId} no se puede usar ({Reason}); "
+            + "se escribe en la carpeta de destino {Root}",
+            configured,
+            reference.Id,
+            check.Error ?? "no existe o no admite escritura",
+            fallback);
+
+        return fallback;
+    }
+
+    /// <summary>
+    /// Removes the series folder a previous run wrote when the program has moved to another library, and
+    /// records the folder of this run.
+    /// </summary>
+    /// <param name="reference">Program reference, whose <c>WrittenPath</c> is updated.</param>
+    /// <param name="programId">3Cat program id, used to make sure the old folder is the one of this program.</param>
+    /// <param name="seriesPath">Folder written by this run.</param>
+    /// <remarks>
+    /// The old folder is only removed when it holds nothing but files of this plugin and its
+    /// <c>tvshow.nfo</c> names this program, so a folder the user filled with something else is kept. The
+    /// new path is always recorded, so a removal that fails is retried on the next run.
+    /// </remarks>
+    private void RemoveMovedSeries(ThreeCatProgramReference reference, string programId, string seriesPath)
+    {
+        var previous = reference.WrittenPath?.Trim();
+        reference.WrittenPath = seriesPath;
+
+        if (string.IsNullOrEmpty(previous) || LibraryPath.SamePath(previous, seriesPath))
+        {
+            return;
+        }
+
+        if (!StrmLibrary.TryDeleteSeriesFolder(previous, programId))
+        {
+            _logger.LogInformation(
+                "3Cat: «{Series}» se escribió antes en {Previous}; no se elimina porque no es una carpeta "
+                + "del plugin para este programa",
+                Path.GetFileName(seriesPath),
+                previous);
+
+            return;
+        }
+
+        var parent = Path.GetDirectoryName(previous);
+        if (!string.IsNullOrEmpty(parent))
+        {
+            _libraryMonitor.ReportFileSystemChanged(parent);
+        }
+
+        _logger.LogInformation(
+            "3Cat: «{Series}» cambió de biblioteca; se eliminó la carpeta anterior {Previous}",
+            Path.GetFileName(seriesPath),
+            previous);
     }
 
     /// <summary>
@@ -203,40 +290,53 @@ public sealed partial class ThreeCatSyncService
 
     /// <summary>
     /// Builds the series metadata. The kind of program 3Cat files the program under («Sèrie»,
-    /// «Documental», «Animació»...) is the first genre, followed by the 3Cat themes of its videos
-    /// («Ficció», «Infantil», «Esports»...): Jellyfin shows the genres as filters in the library.
+    /// «Documental», «Animació»...) is the first genre, followed by the audience of its videos
+    /// («Infantil») and the 3Cat themes («Ficció», «Esports»...): Jellyfin shows the genres as filters in
+    /// the library.
     /// </summary>
     /// <param name="programId">3Cat program id.</param>
     /// <param name="seriesTitle">Series title.</param>
     /// <param name="classification">Kind of program and genres of the series.</param>
+    /// <param name="originalTitle">
+    /// Original title published in the page of the program, or <c>null</c> when the page was not read
+    /// or publishes none.
+    /// </param>
     /// <returns>The metadata written to the <c>tvshow.nfo</c>.</returns>
     private static LibrarySeries BuildSeriesMetadata(
         string programId,
         string seriesTitle,
-        ProgramClassification classification)
+        ProgramClassification classification,
+        string? originalTitle)
         => new()
         {
             Title = seriesTitle,
+            OriginalTitle = originalTitle,
             ProgramId = programId,
             Country = "ES",
             Genres = classification.Genres
         };
 
     /// <summary>
-    /// Classifies the program with the formats and themes 3Cat files it under.
+    /// Classifies the program with the formats and themes 3Cat files it under, tells the anime apart from
+    /// the rest of the animation with the page of the program, and reads the audience of its videos.
     /// </summary>
     /// <param name="configuration">Plugin configuration.</param>
     /// <param name="programId">3Cat program id.</param>
     /// <param name="videos">Videos of the program.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The kind of program and the genres to write to the <c>tvshow.nfo</c>.</returns>
+    /// <returns>
+    /// The kind of program and the genres to write to the <c>tvshow.nfo</c>, and the original title
+    /// published in the page of the program when the page was read.
+    /// </returns>
     /// <remarks>
-    /// 3Cat publishes no endpoint that names the classification of a program: it is the sweep of the
-    /// facets of the search endpoint, which the client caches for half an hour. A program that appears in
-    /// no known facet, or a sweep that fails, keeps the themes of its videos as genres, so the series is
-    /// never written without genres.
+    /// 3Cat publishes no endpoint that names the classification of a program: the formats and the themes
+    /// are the sweep of the facets of the search endpoint, which the client caches for half an hour. The
+    /// page of the program is read only when the animation has to be told apart, because it is the only
+    /// place where 3Cat publishes the country of origin and the anime collections. A program that appears
+    /// in no known facet, or a request that fails, keeps the themes of its videos as genres, so the series
+    /// is never written without genres.
     /// </remarks>
-    private async Task<ProgramClassification> ClassifyProgramAsync(
+    private async Task<(ProgramClassification Classification, string? OriginalTitle)> ClassifyProgramAsync(
         PluginConfiguration configuration,
         string programId,
         IReadOnlyList<ThreeCatVideo> videos,
@@ -246,7 +346,7 @@ public sealed partial class ThreeCatSyncService
 
         if (!configuration.ClassifyPrograms)
         {
-            return new ProgramClassification(null, themes);
+            return (new ProgramClassification(null, themes), null);
         }
 
         try
@@ -254,7 +354,31 @@ public sealed partial class ThreeCatSyncService
             var taxonomy = await _client.GetProgramTaxonomyAsync(cancellationToken).ConfigureAwait(false);
             taxonomy.TryGetValue(programId, out var facets);
 
-            return ProgramClassifier.Classify(facets?.Formats, facets?.Themes, themes);
+            var details = configuration.SeparateAnime
+                && ProgramClassifier.IsAnimation(facets?.Formats, facets?.Themes)
+                    ? await _client.GetProgramDetailsAsync(programId, cancellationToken).ConfigureAwait(false)
+                    : null;
+
+            var anime = details is not null && ProgramClassifier.IsAnime(details.Groups, details.Countries);
+
+            // The audience comes with the catalog of the program, so it costs no request: the target of
+            // its videos («Infantil») is what 3Cat builds the SX3 rails with, and the channel of the SX3
+            // family is the fallback for a video that publishes no target.
+            var children = configuration.SeparateChildren
+                && ProgramClassifier.IsChildren(
+                    videos.SelectMany(video => video.Targets?.Targets ?? []).Select(target => target.Id),
+                    videos.SelectMany(video => video.Channels?.Channels ?? []).Select(channel => channel.Id));
+
+            // The page of the program publishes its formats too, and it is the only source for a program
+            // the sweep of the search endpoint did not reach.
+            return (
+                ProgramClassifier.Classify(
+                    facets?.Formats ?? details?.Formats,
+                    facets?.Themes,
+                    themes,
+                    anime,
+                    children),
+                details?.OriginalTitle);
         }
         catch (OperationCanceledException)
         {
@@ -267,7 +391,7 @@ public sealed partial class ThreeCatSyncService
                 "3Cat: no se pudo leer la clasificación del programa {ProgramId}; se escriben solo sus temas como géneros",
                 programId);
 
-            return new ProgramClassification(null, themes);
+            return (new ProgramClassification(null, themes), null);
         }
     }
 

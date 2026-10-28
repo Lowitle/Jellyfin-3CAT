@@ -93,6 +93,63 @@ public sealed partial class ThreeCatSyncService
         }
 
         progress?.Report(100);
+        SaveWrittenPaths(references);
         _logger.LogInformation("3Cat: sincronización completada, {Files} archivos escritos", totalWritten);
+    }
+
+    /// <summary>
+    /// Stores the series folder written for each program, so the next run can clean up after a program
+    /// that moved to another library.
+    /// </summary>
+    /// <param name="references">Programs of the run, with the folder each one was written to.</param>
+    /// <remarks>
+    /// The configuration is read again from the plugin instead of saving the object of the run: the user
+    /// may have saved the page while the task was writing, and that save must not be undone.
+    /// </remarks>
+    private void SaveWrittenPaths(IReadOnlyList<ThreeCatProgramReference> references)
+    {
+        var plugin = Plugin.Instance;
+        if (plugin is null || plugin.Configuration.Programs is not { Count: > 0 } programs)
+        {
+            return;
+        }
+
+        var configuration = plugin.Configuration;
+        var changed = false;
+
+        foreach (var program in programs)
+        {
+            var id = ThreeCatClient.NormalizeReference(program.Id);
+            var reference = references.FirstOrDefault(
+                candidate => string.Equals(
+                    ThreeCatClient.NormalizeReference(candidate.Id),
+                    id,
+                    StringComparison.Ordinal));
+
+            if (reference is null
+                || string.IsNullOrEmpty(reference.WrittenPath)
+                || string.Equals(program.WrittenPath, reference.WrittenPath, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            program.WrittenPath = reference.WrittenPath;
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        try
+        {
+            plugin.UpdateConfiguration(configuration);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The cache is only a hint for the next run: the series themselves are already written.
+            _logger.LogWarning(ex, "3Cat: no se pudo guardar la carpeta escrita de los programas");
+        }
     }
 }

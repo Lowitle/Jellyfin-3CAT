@@ -16,6 +16,12 @@ public sealed class LibrarySeries
     public string ProgramId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the original title of the program, when 3Cat publishes one and it differs from the
+    /// Catalan title. Jellyfin shows it as the original title of the series.
+    /// </summary>
+    public string? OriginalTitle { get; set; }
+
+    /// <summary>
     /// Gets or sets the plot.
     /// </summary>
     public string? Plot { get; set; }

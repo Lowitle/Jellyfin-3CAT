@@ -77,6 +77,43 @@ public class NfoBuilderTests
     }
 
     [Fact]
+    public void BuildSeries_WritesTheOriginalTitleOnlyWhenItSaysSomethingNew()
+    {
+        var series = new LibrarySeries
+        {
+            Title = "Bola de Drac",
+            OriginalTitle = " Dragon Ball ",
+            ProgramId = "73476",
+            Genres = ["Anime", "Animació"]
+        };
+
+        var root = XDocument.Parse(NfoBuilder.BuildSeries(series)).Root!;
+
+        Assert.Equal("Bola de Drac", root.Element("title")!.Value);
+        Assert.Equal("Dragon Ball", root.Element("originaltitle")!.Value);
+        Assert.Equal(["Anime", "Animació"], root.Elements("genre").Select(element => element.Value));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("bola de drac")]
+    public void BuildSeries_OmitsTheOriginalTitleWhenItIsMissingOrRepeatsTheTitle(string? originalTitle)
+    {
+        var series = new LibrarySeries
+        {
+            Title = "Bola de Drac",
+            OriginalTitle = originalTitle,
+            ProgramId = "73476"
+        };
+
+        var root = XDocument.Parse(NfoBuilder.BuildSeries(series)).Root!;
+
+        Assert.Null(root.Element("originaltitle"));
+    }
+
+    [Fact]
     public void BuildSeries_StartsWithTheXmlDeclaration()
     {
         var nfo = NfoBuilder.BuildSeries(new LibrarySeries { Title = "Merlí", ProgramId = "42" });

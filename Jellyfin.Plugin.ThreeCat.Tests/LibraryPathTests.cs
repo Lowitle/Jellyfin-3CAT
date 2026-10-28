@@ -122,4 +122,39 @@ public sealed class LibraryPathTests
             Assert.True(Directory.Exists(suggestion), suggestion);
         }
     }
+
+    [Fact]
+    public void SamePath_IgnoresTheTrailingSeparatorAndTheSeparatorStyle()
+    {
+        using var folder = new TempFolder();
+        var series = Path.Combine(folder.Root, "anime", "Bola de Drac");
+        var alternates = new[]
+        {
+            series + Path.DirectorySeparatorChar,
+            series.Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+        };
+
+        Assert.True(LibraryPath.SamePath(series, series));
+        Assert.All(alternates, alternate => Assert.True(LibraryPath.SamePath(series, alternate), alternate));
+    }
+
+    [Fact]
+    public void SamePath_ComparesTheCaseTheWayThePlatformDoes()
+    {
+        using var folder = new TempFolder();
+        var series = Path.Combine(folder.Root, "anime", "Bola de Drac");
+
+        Assert.Equal(OperatingSystem.IsWindows(), LibraryPath.SamePath(series, series.ToUpperInvariant()));
+        Assert.False(LibraryPath.SamePath(series, Path.Combine(folder.Root, "tv", "Bola de Drac")));
+    }
+
+    [Theory]
+    [InlineData(null, "C:\\media")]
+    [InlineData("C:\\media", null)]
+    [InlineData("", "C:\\media")]
+    [InlineData("   ", "C:\\media")]
+    public void SamePath_WithoutOneOfThePaths_SaysNo(string? left, string? right)
+    {
+        Assert.False(LibraryPath.SamePath(left, right));
+    }
 }

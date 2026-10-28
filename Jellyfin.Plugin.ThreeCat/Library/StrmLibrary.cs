@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Xml.Linq;
 
 namespace Jellyfin.Plugin.ThreeCat.Library;
 
@@ -9,6 +10,14 @@ namespace Jellyfin.Plugin.ThreeCat.Library;
 public static class StrmLibrary
 {
     private static readonly UTF8Encoding Utf8NoBom = new(false);
+
+    /// <summary>
+    /// Extensions of the files this class writes, plus the artwork the synchronization saves next to them.
+    /// </summary>
+    private static readonly HashSet<string> ManagedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".strm", ".nfo", ".srt", ".jpg", ".jpeg", ".png", ".webp"
+    };
 
     /// <summary>
     /// Gets the folder that holds a series.
@@ -137,6 +146,88 @@ public static class StrmLibrary
                 yield return subtitle with { Language = language };
             }
         }
+    }
+
+    /// <summary>
+    /// Deletes a series folder written by this plugin, so a program that moved to another library leaves
+    /// nothing behind.
+    /// </summary>
+    /// <param name="folder">Series folder to delete.</param>
+    /// <param name="programId">3Cat program id the folder has to belong to.</param>
+    /// <returns><c>true</c> when the folder was deleted.</returns>
+    /// <remarks>
+    /// It is deliberately conservative: the folder has to hold a <c>tvshow.nfo</c> whose
+    /// <c>uniqueid type="threecat"</c> is the program, and nothing but files of the plugin (episodes,
+    /// metadata, subtitles and artwork). A folder that holds anything else is kept, and the caller only
+    /// logs it: the folders of the library can be shared with the user.
+    /// </remarks>
+    public static bool TryDeleteSeriesFolder(string? folder, string? programId)
+    {
+        if (string.IsNullOrWhiteSpace(folder) || string.IsNullOrWhiteSpace(programId))
+        {
+            return false;
+        }
+
+        string path;
+        string nfo;
+
+        try
+        {
+            path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder.Trim()));
+            nfo = Path.Combine(path, "tvshow.nfo");
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+
+        if (!Directory.Exists(path) || !File.Exists(nfo))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!BelongsTo(nfo, programId.Trim()))
+            {
+                return false;
+            }
+
+            if (Directory
+                .EnumerateFiles(path, "*", SearchOption.AllDirectories)
+                .Any(file => !ManagedExtensions.Contains(Path.GetExtension(file))))
+            {
+                return false;
+            }
+
+            Directory.Delete(path, recursive: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Tells whether a <c>tvshow.nfo</c> names a 3Cat program in its <c>threecat</c> unique id.
+    /// </summary>
+    /// <param name="nfo">Path of the <c>tvshow.nfo</c>.</param>
+    /// <param name="programId">Program id.</param>
+    /// <returns>Whether the file belongs to the program.</returns>
+    private static bool BelongsTo(string nfo, string programId)
+    {
+        var id = XDocument
+            .Load(nfo)
+            .Descendants("uniqueid")
+            .FirstOrDefault(element => string.Equals(
+                (string?)element.Attribute("type"),
+                "threecat",
+                StringComparison.OrdinalIgnoreCase))
+            ?.Value
+            .Trim();
+
+        return string.Equals(id, programId, StringComparison.Ordinal);
     }
 
     private static string Unique(string baseName, HashSet<string> used)

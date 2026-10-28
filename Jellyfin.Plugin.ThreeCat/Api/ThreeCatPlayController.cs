@@ -127,7 +127,8 @@ public sealed class ThreeCatPlayController : ControllerBase
     /// radio programs are included and flagged with <see cref="ThreeCatCatalogProgram.HasVideo"/> =
     /// <c>false</c>, so the page is the one that hides them. With <c>ClassifyPrograms</c> on, each program
     /// is also tagged with the kind 3Cat files it under («Sèrie», «Documental»...) and the page can filter
-    /// by it; a sweep that fails only leaves the programs without a category.
+    /// by it, with «Anime» instead of «Animació» for the programs that are anime; a sweep that fails only
+    /// leaves the programs without a category.
     /// </remarks>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Every program of the catalog.</returns>
@@ -136,7 +137,8 @@ public sealed class ThreeCatPlayController : ControllerBase
         CancellationToken cancellationToken)
     {
         var taxonomy = await ReadTaxonomyAsync(cancellationToken).ConfigureAwait(false);
-        var programs = await _client.ListAllProgramsAsync(taxonomy, cancellationToken).ConfigureAwait(false);
+        var anime = await ReadAnimeAsync(taxonomy, cancellationToken).ConfigureAwait(false);
+        var programs = await _client.ListAllProgramsAsync(taxonomy, anime, cancellationToken).ConfigureAwait(false);
 
         return Ok(programs);
     }
@@ -178,6 +180,60 @@ public sealed class ThreeCatPlayController : ControllerBase
     }
 
     /// <summary>
+    /// Reads the anime of the catalog, or <c>null</c> when it is turned off or 3Cat does not answer.
+    /// </summary>
+    /// <param name="taxonomy">Facets of each program, or <c>null</c> when the catalog is unclassified.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The ids of the anime, or <c>null</c> to leave every animated program as «Animació».</returns>
+    /// <remarks>
+    /// 3Cat publishes no anime facet and files anime under the same format as the rest of the animation,
+    /// so the only source is the page of each program: 175 of the 2201 programs of the catalog. They are
+    /// read six at a time (about two seconds) and the client caches them for six hours, so the table of
+    /// the configuration page is built from memory after the first read. A read that fails is logged and
+    /// the page falls back to the catalog without anime, which is what it shows when the setting is off.
+    /// </remarks>
+    private async Task<IReadOnlySet<string>?> ReadAnimeAsync(
+        IReadOnlyDictionary<string, ThreeCatProgramTaxonomy>? taxonomy,
+        CancellationToken cancellationToken)
+    {
+        var configuration = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        if (!configuration.SeparateAnime || taxonomy is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var animation = taxonomy
+            .Where(entry => ProgramClassifier.IsAnimation(entry.Value.Formats, entry.Value.Themes))
+            .Select(entry => entry.Key)
+            .ToList();
+
+        if (animation.Count == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            var details = await _client.GetProgramDetailsAsync(animation, cancellationToken).ConfigureAwait(false);
+
+            return details
+                .Where(entry => ProgramClassifier.IsAnime(entry.Value.Groups, entry.Value.Countries))
+                .Select(entry => entry.Key)
+                .ToHashSet(StringComparer.Ordinal);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "3Cat: no se pudo leer el anime de los programas del catálogo");
+
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Checks that the destination folder exists and is writable by the Jellyfin process.
     /// </summary>
     /// <param name="path">Folder to check.</param>
@@ -185,6 +241,30 @@ public sealed class ThreeCatPlayController : ControllerBase
     [HttpGet("Path/Check")]
     public ActionResult<LibraryPathStatus> CheckPath([FromQuery] string? path)
         => Ok(LibraryPath.Check(path));
+
+    /// <summary>
+    /// Lists the libraries of the server with their folders, so the page can offer a destination per
+    /// program.
+    /// </summary>
+    /// <returns>The libraries that index at least one folder.</returns>
+    /// <remarks>
+    /// A program assigned to a library is written in the folder that library indexes: Jellyfin indexes a
+    /// folder in every library that points at it, so no library has to be created for it. The list is read
+    /// on every request, so a library created while the page is open shows up when the page is reloaded.
+    /// </remarks>
+    [HttpGet("Libraries")]
+    public ActionResult<IReadOnlyList<ThreeCatLibrary>> ListLibraries()
+    {
+        var libraries = _libraryManager.GetVirtualFolders() ?? [];
+
+        return Ok(libraries
+            .Where(library => library.Locations is { Length: > 0 })
+            .Select(library => new ThreeCatLibrary(
+                library.Name,
+                library.CollectionType?.ToString(),
+                library.Locations!))
+            .ToList());
+    }
 
     /// <summary>
     /// Creates a «Programas de TV» library that points at the destination folder, or adds the folder
@@ -295,3 +375,16 @@ public sealed record ThreeCatProgramSummary(
     int TotalPages,
     bool Truncated,
     string Message);
+
+/// <summary>
+/// A library of the server, as offered by the page to pick the folder of a program.
+/// </summary>
+/// <param name="Name">Name of the library.</param>
+/// <param name="CollectionType">
+/// Type of content (<c>tvshows</c>, <c>movies</c>...), or <c>null</c> for a library that mixes them.
+/// </param>
+/// <param name="Locations">Folders the library indexes.</param>
+public sealed record ThreeCatLibrary(
+    string Name,
+    string? CollectionType,
+    IReadOnlyList<string> Locations);

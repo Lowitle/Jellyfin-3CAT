@@ -1,7 +1,7 @@
 ---
 name: "3Cat"
 guid: "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-version: "1.2.0.0"
+version: "1.4.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Crea una biblioteca de series con el catálogo a la carta de 3Cat (.strm + metadatos + subtítulos)."
@@ -16,6 +16,29 @@ owner: "Lowitle"
 artifacts:
   - "Jellyfin.Plugin.ThreeCat.dll"
 changelog: >
+  1.4.0.0: cada programa se puede mandar a la biblioteca de Jellyfin que se quiera. La lista de programas
+  estrena la columna «Biblioteca»: por defecto todos se siguen escribiendo en la carpeta de destino del
+  plugin, pero un programa se puede asignar a la carpeta de una biblioteca existente («Anime»,
+  «Infantil», «Programas de TV»...) y el plugin escribe allí el .strm, el .nfo y los subtítulos, sin
+  duplicar nada y sin crear bibliotecas nuevas. Un programa que cambia de biblioteca se borra de la
+  carpeta anterior en la siguiente actualización, solo cuando esa carpeta contiene únicamente archivos
+  del plugin y su tvshow.nfo identifica el programa; una carpeta que ya no existe o no admite escritura
+  no rompe la tarea, el programa vuelve a la carpeta de destino y se avisa en el registro. Además, 3Cat
+  clasifica cada vídeo por público («Infantil», «Juvenil», «Tots els Públics»), así que la nueva casilla
+  «Marcar los programas infantiles como «Infantil»», activada por defecto, escribe «Infantil» como
+  género justo detrás del tipo, con el canal de la familia SX3 como respaldo y sin peticiones extra: la
+  biblioteca se filtra por «Infantil» sin perder «Anime» ni «Animació», y la tabla del catálogo los marca
+  en la columna «Categoría» y estrena el filtro «Infantil».
+  1.3.0.0: el anime se separa de la animación. 3Cat no publica ninguna etiqueta de anime y archiva
+  «Bola de Drac» o «Doraemon» bajo el mismo formato que «Mironins» o «Louie», así que el plugin lo
+  deduce de la ficha del programa —el país de origen («Japó») y las colecciones internas con las que
+  3Cat monta sus franjas de anime—, sin bases de datos externas ni clave de TVDB. Las series de anime
+  se escriben con «Anime» como primer género y «Animació» como segundo, así que la biblioteca se filtra
+  por anime sin perder el filtro de animación, y la tabla del catálogo las marca con la categoría
+  «Anime». De la misma ficha se escribe el título original («Dragon Ball» en «Bola de Drac»). La ficha
+  se lee solo para los 175 programas de animación del catálogo (seis peticiones a la vez, unos dos
+  segundos, en caché seis horas) y la página estrena la casilla «Separar el anime de la animación»,
+  activada por defecto y que requiere la clasificación por formato.
   1.2.0.0: cada serie se clasifica por el formato bajo el que 3Cat archiva el programa («Sèrie»,
   «Documental», «Animació», «Cinema», «Concurs»...), que se escribe como primer género del tvshow.nfo
   por delante de sus temas, así que la biblioteca se filtra por tipo de programa con los filtros

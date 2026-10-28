@@ -106,6 +106,26 @@ public sealed class ThreeCatVideo
     public List<ThreeCatLabel>? Themes { get; set; }
 
     /// <summary>
+    /// Gets or sets the audience targets of the video («Infantil», «Juvenil», «Tots els Públics»).
+    /// </summary>
+    /// <remarks>
+    /// 3Cat files every video under one target, and it is the classification the portal itself uses to
+    /// build the SX3 rails, so it tells a children's program from the rest without any extra request.
+    /// </remarks>
+    [JsonPropertyName("targets")]
+    public ThreeCatTargets? Targets { get; set; }
+
+    /// <summary>
+    /// Gets or sets the channels the video was broadcast on («Super3», «S3», «X3»...).
+    /// </summary>
+    /// <remarks>
+    /// It is the fallback of <see cref="Targets"/>: a video of the SX3 family without a published target
+    /// is still a children's program.
+    /// </remarks>
+    [JsonPropertyName("canals")]
+    public ThreeCatVideoChannels? Channels { get; set; }
+
+    /// <summary>
     /// Gets or sets the audio languages.
     /// </summary>
     [JsonPropertyName("idiomes")]

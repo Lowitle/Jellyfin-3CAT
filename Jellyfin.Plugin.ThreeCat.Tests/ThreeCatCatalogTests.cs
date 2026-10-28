@@ -71,6 +71,37 @@ public sealed class ThreeCatCatalogTests
         Assert.Null(entry.AgeRating);
     }
 
+    [Fact]
+    public void ToCatalogProgram_FlagsTheProgramsOfTheSx3Family()
+    {
+        var entry = ThreeCatClient.ToCatalogProgram(new ThreeCatSearchProgram
+        {
+            Id = "119987484",
+            Title = "Doraemon, el gat còsmic",
+            Typology = "PTVC_PROGRAMA",
+            Channels = [new ThreeCatLabel { Id = "PUC_S3", Description = "Super3", Main = true }]
+        });
+
+        Assert.True(entry.Children);
+    }
+
+    [Theory]
+    [InlineData("PUC_TV3")]
+    [InlineData("PUC_33")]
+    [InlineData("PUC_E3")]
+    public void ToCatalogProgram_LeavesTheOtherChannelsOut(string channel)
+    {
+        var entry = ThreeCatClient.ToCatalogProgram(new ThreeCatSearchProgram
+        {
+            Id = "49176",
+            Title = "Bola de Drac Z",
+            Typology = "PTVC_PROGRAMA",
+            Channels = [new ThreeCatLabel { Id = channel, Description = "TV3", Main = true }]
+        });
+
+        Assert.False(entry.Children);
+    }
+
     [Theory]
     [InlineData("23/10/2026 08:00:00", "2026-10-23")]
     [InlineData("23/10/2026", "2026-10-23")]

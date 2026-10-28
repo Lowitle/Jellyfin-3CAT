@@ -196,6 +196,55 @@ public class StrmLibraryTests
         Assert.Throws<ArgumentException>(() => StrmLibrary.Write(root, series, [Episode()], new LibraryWriteOptions()));
     }
 
+    [Fact]
+    public void TryDeleteSeriesFolder_RemovesTheFolderOfTheProgram()
+    {
+        using var folder = new TempFolder();
+        var seriesFolder = StrmLibrary
+            .Write(folder.Root, Series(), [Episode()], new LibraryWriteOptions())
+            .SeriesPath;
+
+        Assert.True(StrmLibrary.TryDeleteSeriesFolder(seriesFolder, "119987484"));
+        Assert.False(Directory.Exists(seriesFolder));
+        Assert.True(Directory.Exists(folder.Root));
+    }
+
+    [Fact]
+    public void TryDeleteSeriesFolder_KeepsAFolderTheUserFilled()
+    {
+        using var folder = new TempFolder();
+        var seriesFolder = StrmLibrary
+            .Write(folder.Root, Series(), [Episode()], new LibraryWriteOptions())
+            .SeriesPath;
+        File.WriteAllText(Path.Combine(seriesFolder, "notas.txt"), "no se toca");
+
+        Assert.False(StrmLibrary.TryDeleteSeriesFolder(seriesFolder, "119987484"));
+        Assert.True(Directory.Exists(seriesFolder));
+    }
+
+    [Fact]
+    public void TryDeleteSeriesFolder_KeepsTheFolderOfAnotherProgram()
+    {
+        using var folder = new TempFolder();
+        var seriesFolder = StrmLibrary
+            .Write(folder.Root, Series(), [Episode()], new LibraryWriteOptions())
+            .SeriesPath;
+
+        // The folder is named after a series: without the id of the NFO it could be another program.
+        Assert.False(StrmLibrary.TryDeleteSeriesFolder(seriesFolder, "73476"));
+        Assert.True(Directory.Exists(seriesFolder));
+    }
+
+    [Fact]
+    public void TryDeleteSeriesFolder_WithoutTheFolder_SaysNo()
+    {
+        using var folder = new TempFolder();
+
+        Assert.False(StrmLibrary.TryDeleteSeriesFolder(folder.Combine("Doraemon"), "119987484"));
+        Assert.False(StrmLibrary.TryDeleteSeriesFolder(null, "119987484"));
+        Assert.False(StrmLibrary.TryDeleteSeriesFolder(folder.Root, " "));
+    }
+
     private static LibrarySeries Series() => new()
     {
         Title = "Doraemon",

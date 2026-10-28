@@ -87,7 +87,7 @@ public sealed partial class ThreeCatClient
     /// cached, so a hiccup of 3Cat is retried on the next request.
     /// </remarks>
     public Task<IReadOnlyList<ThreeCatCatalogProgram>> ListAllProgramsAsync(CancellationToken cancellationToken)
-        => ListAllProgramsAsync(null, cancellationToken);
+        => ListAllProgramsAsync(null, null, cancellationToken);
 
     /// <summary>
     /// Reads the whole program catalog of 3Cat and tags each program with the kind 3Cat files it under.
@@ -95,6 +95,10 @@ public sealed partial class ThreeCatClient
     /// <param name="taxonomy">
     /// Formats and themes of each program, keyed by <c>programatv_id</c>, or <c>null</c> to leave the
     /// programs unclassified.
+    /// </param>
+    /// <param name="animeIds">
+    /// Programs that are anime, or <c>null</c> when they are not told apart from the rest of the
+    /// animation. <c>PUFF_SDIBU</c> covers both, so the category of these programs is «Anime».
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Every program of the catalog, with <see cref="ThreeCatCatalogProgram.Category"/> filled.</returns>
@@ -105,6 +109,7 @@ public sealed partial class ThreeCatClient
     /// </remarks>
     public async Task<IReadOnlyList<ThreeCatCatalogProgram>> ListAllProgramsAsync(
         IReadOnlyDictionary<string, ThreeCatProgramTaxonomy>? taxonomy,
+        IReadOnlySet<string>? animeIds,
         CancellationToken cancellationToken)
     {
         var programs = await ListProgramsAsync(cancellationToken).ConfigureAwait(false);
@@ -116,7 +121,14 @@ public sealed partial class ThreeCatClient
 
         return programs
             .Select(program => taxonomy.TryGetValue(program.Id, out var facets)
-                ? program with { Category = ProgramClassifier.Classify(facets.Formats, facets.Themes, null).Kind }
+                ? program with
+                {
+                    Category = ProgramClassifier.Classify(
+                        facets.Formats,
+                        facets.Themes,
+                        null,
+                        animeIds?.Contains(program.Id) == true).Kind
+                }
                 : program)
             .ToList();
     }
@@ -181,7 +193,10 @@ public sealed partial class ThreeCatClient
             Labels(program.Languages),
             MainDescription(program.AgeRatings),
             NormalizeProgramDate(program.Published),
-            hasVideo);
+            hasVideo,
+            Children: ProgramClassifier.IsChildren(
+                null,
+                program.Channels?.Select(channel => channel.Id)));
     }
 
     /// <summary>

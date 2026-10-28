@@ -17,7 +17,9 @@ internal static class NfoBuilder
     /// The genres are what Jellyfin shows as filters in the library («Serie», «Documental»,
     /// «Infantil»...), and the tags keep the exact 3Cat program type. The IMDb id is only written
     /// when the user allows it: Jellyfin uses it to fetch online metadata, which may replace the
-    /// title or the plot written here.
+    /// title or the plot written here. The original title is only written when 3Cat publishes one
+    /// that differs from the Catalan title, so a library with the local metadata provider still
+    /// shows «Dragon Ball» as the original title of «Bola de Drac».
     /// </remarks>
     internal static string BuildSeries(LibrarySeries series)
     {
@@ -30,6 +32,15 @@ internal static class NfoBuilder
             new XElement(
                 "plot",
                 string.IsNullOrWhiteSpace(series.Plot) ? $"Programas de {series.Title} en 3Cat." : series.Plot));
+
+        // 3Cat publishes the original title in the card of the program («Dragon Ball» for «Bola de
+        // Drac»): Jellyfin keeps it apart from the Catalan title, which is the one the series is
+        // sorted and searched by.
+        if (!string.IsNullOrWhiteSpace(series.OriginalTitle)
+            && !string.Equals(series.OriginalTitle.Trim(), series.Title.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            root.Add(new XElement("originaltitle", series.OriginalTitle.Trim()));
+        }
 
         if (!string.IsNullOrWhiteSpace(series.Country))
         {

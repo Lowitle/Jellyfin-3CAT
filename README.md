@@ -59,13 +59,39 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
   transcodificación directa.
 - **Metadatos**: `tvshow.nfo` y un `.nfo` por episodio con título, sinopsis, fecha de emisión,
   duración, géneros y temporada/capítulo. El id de 3Cat se escribe como `uniqueid type="threecat"`,
-  así que la biblioteca se puede identificar sin depender de TVDB ni de TMDb.
+  así que la biblioteca se puede identificar sin depender de TVDB ni de TMDb. Las series de anime
+  llevan además el título original que publica 3Cat (`originaltitle`), para que «Bola de Drac» se
+  muestre como «Dragon Ball» sin que Jellyfin sustituya el título catalán.
 - **Clasificación por formato**: el formato bajo el que 3Cat archiva cada programa («Sèrie»,
   «Documental», «Animació», «Cinema», «Concurs»…) se escribe **como primer género** de la serie, delante
   de sus temas («Ficció», «Esports»…), así que la biblioteca se filtra por tipo de programa con los
   filtros nativos de Jellyfin y sin plugins añadidos. 3Cat no publica esa clasificación en ningún
   endpoint: el plugin barre las facetas `format_contingut` y `tematica` del buscador (24 peticiones,
   cacheadas media hora) y las invierte en una tabla por `programatv_id`.
+- **Anime**: 3Cat archiva «Bola de Drac» o «Doraemon» bajo el mismo formato que «Mironins» o «Louie»
+  y no publica ninguna etiqueta de anime, así que el plugin lo deduce de la ficha del programa —el país
+  de origen del programa («Japó») y las colecciones internas con las que 3Cat monta sus franjas de
+  anime—, sin bases de datos externas ni clave de TVDB. Las series de anime se escriben con «Anime»
+  como primer género y «Animació» como segundo, así que la biblioteca se filtra por anime sin perder el
+  filtro de animación, y el catálogo de la página de configuración las marca con la categoría «Anime».
+  La ficha se lee solo para los programas de animación (175 de los 2201 del catálogo, seis peticiones a
+  la vez, unos dos segundos, en caché seis horas).
+- **Infantil**: 3Cat clasifica cada vídeo por público («Infantil», «Juvenil», «Tots els Públics») y monta
+  con esa marca las franjas del SX3. El plugin la lee del mismo catálogo que ya descarga —sin peticiones
+  extra— y escribe «Infantil» como género justo después del tipo, así que «Anime» y «Animació» siguen
+  funcionando y la biblioteca se filtra por «Infantil». El canal de la familia SX3 (`PUC_S3`,
+  `PUC_S3_S3`, `PUC_S3_X3`) hace de respaldo cuando un vídeo no publica público. El catálogo de la página
+  de configuración marca esos programas en la columna **Categoría** y añade «Infantil» al filtro.
+- **Una biblioteca por programa**: cada programa se escribe por defecto en la carpeta de destino del
+  plugin, pero la columna **Biblioteca** de la lista de programas permite mandarlo a la carpeta de otra
+  biblioteca de Jellyfin («Anime», «Infantil», «Programas de TV»…). No duplica la serie: escribe el
+  `.strm`, el `.nfo` y los subtítulos en la carpeta que esa biblioteca ya indexa, así que Jellyfin la
+  muestra allí. Si un programa cambia de biblioteca, la carpeta anterior se elimina en la siguiente
+  actualización —solo cuando contiene únicamente archivos del plugin y su `tvshow.nfo` identifica el
+  programa—, y una carpeta que ya no existe o no admite escritura no rompe la tarea: ese programa vuelve
+  a la carpeta de destino con un aviso en el registro. Si en la carpeta elegida ya hay una serie con el
+  mismo nombre, el plugin escribe encima sus archivos de metadatos y episodios, así que conviene
+  comprobar antes qué hay en esa biblioteca.
 - **Carátulas**: descarga `poster.jpg` del programa y `fanart.jpg` desde las imágenes del catálogo
   (`sdom=img`).
 - **Subtítulos** (opcionales): descarga los WebVTT de 3Cat y los convierte a SRT junto a cada episodio
@@ -79,12 +105,14 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
 
 | Campo | Por defecto | Descripción |
 | --- | --- | --- |
-| **Programas** | vacío | Lista de programas a replicar, por `programatv_id` o por URL de un vídeo. Al pulsar **Añadir** el plugin valida la referencia y guarda el título del programa, que es el nombre de la carpeta de la serie. **Ver todos los programas** abre la tabla del catálogo completo de 3Cat para buscarlos y añadirlos de una vez. |
-| **Carpeta de destino** | vacío | Carpeta raíz donde se escriben las carpetas de serie. **Comprobar carpeta** verifica que existe y que Jellyfin puede escribir; **Crear biblioteca «3Cat»** la da de alta como biblioteca de series. |
+| **Programas** | vacío | Lista de programas a replicar, por `programatv_id` o por URL de un vídeo. Al pulsar **Añadir** el plugin valida la referencia y guarda el título del programa, que es el nombre de la carpeta de la serie. **Ver todos los programas** abre la tabla del catálogo completo de 3Cat para buscarlos y añadirlos de una vez. La columna **Biblioteca** decide en qué carpeta se escribe cada programa: la de destino del plugin o la de otra biblioteca de Jellyfin. |
+| **Carpeta de destino** | vacío | Carpeta raíz donde se escriben las carpetas de serie. **Comprobar carpeta** verifica que existe y que Jellyfin puede escribir; **Crear biblioteca «3Cat»** la da de alta como biblioteca de series. Es el destino de los programas que no tienen otra biblioteca asignada. |
 | **Intervalo de actualización (horas)** | `12` | Periodicidad de la tarea programada «Actualizar 3Cat». La tarea también se lanza al arrancar el servidor. |
 | **Máximo de episodios por programa** | `0` | `0` escribe todos los vídeos del catálogo; un valor positivo se queda con los más recientes. |
 | **Escribir archivos .nfo** | activado | Genera `tvshow.nfo` y un `.nfo` por episodio. Es la fuente de metadatos de la biblioteca. |
 | **Clasificar los programas por su formato** | activado | Escribe el formato de 3Cat («Sèrie», «Documental», «Animació»…) como primer género de la serie y lo muestra en la columna **Categoría** del catálogo, que también se puede filtrar. Desactivado, los géneros son solo los temas de los vídeos y el catálogo no lee las facetas. |
+| **Separar el anime de la animación** | activado | Distingue el anime del resto de la animación por lo que publica la ficha del programa (país de origen «Japó» y colecciones de anime de 3Cat) y escribe «Anime» como primer género, con «Animació» detrás, y la categoría **Anime** en el catálogo. La ficha aporta también el título original de la serie (`originaltitle`). Cuesta una petición por programa de animación sincronizado, y las 175 del catálogo se leen en unos dos segundos al abrir la tabla (seis a la vez, en caché seis horas). Requiere la clasificación por formato. |
+| **Marcar los programas infantiles como «Infantil»** | activado | Lee el público que 3Cat publica en cada vídeo («Infantil», «Juvenil», «Tots els Públics») y escribe «Infantil» como género detrás del tipo, así que la biblioteca se filtra por «Infantil» sin perder «Anime» ni «Animació». Si un vídeo no publica público, manda el canal de la familia SX3. El catálogo marca esos programas en la columna **Categoría** y en el filtro. No cuesta ninguna petición extra. Requiere la clasificación por formato. |
 | **Omitir los vídeos caducados y borrar sus archivos** | activado | Salta los vídeos con `data_caducitat` pasada y limpia lo que ya se hubiera escrito. |
 | **Borrar los archivos que ya no están en el catálogo** | desactivado | Elimina `.strm`/`.nfo`/`.srt` de la carpeta de la serie que la ejecución no haya escrito. Si el catálogo responde vacío, la carpeta se queda vacía: úsalo solo para limpiar a mano. |
 | **Descargar subtítulos** | activado | Descarga **todas** las pistas WebVTT que publique cada vídeo y las convierte a SRT, un archivo por idioma. Casi todo el catálogo llega en catalán; los programas doblados o con audiodescripción añaden más pistas. |
@@ -102,6 +130,12 @@ El botón **Ejecutar ahora** guarda la configuración y lanza la tarea sin esper
    los títulos, las sinopsis y los números de episodio que escribe el plugin se sustituyen por otros.
 4. Lanza **Actualizar 3Cat** (o espera al siguiente ciclo) y refresca la biblioteca. La biblioteca se
    deja con monitorización en tiempo real activada, así que los `.strm` nuevos aparecen solos.
+
+> **Una carpeta para cada biblioteca**: si quieres el anime o los programas infantiles en bibliotecas
+> aparte, crea esas bibliotecas en Jellyfin con la carpeta que prefieras (`/media/anime`,
+> `/media/infantil`…) y elige esa carpeta en la columna **Biblioteca** de cada programa. El plugin escribe
+> la serie allí y, si después cambias un programa de biblioteca, borra la carpeta anterior en cuanto esa
+> carpeta solo contenga archivos suyos.
 
 > **Docker**: monta un volumen dedicado (`-v /srv/3cat:/media/3cat`) y escribe en *Carpeta de destino*
 > la ruta **del contenedor** (`/media/3cat`), no la del host. La ruta debe ser escribible por el usuario
@@ -122,6 +156,8 @@ El botón **Ejecutar ahora** guarda la configuración y lanza la tarea sin esper
 ```
 
 - Un `.strm` por emisión con una sola línea: la URL del MP4.
+- La carpeta de la serie se crea dentro de la carpeta de destino del plugin o, si el programa tiene otra
+  biblioteca asignada, dentro de la carpeta de esa biblioteca; en los dos casos la estructura es la misma.
 - `tvshow.nfo` se escribe una vez por serie; los `.nfo` de episodio llevan título, sinopsis, fecha,
   duración y temporada/episodio.
 - Si dos emisiones acaban con el mismo nombre de archivo, la segunda se escribe con el sufijo ` [2]`

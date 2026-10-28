@@ -17,6 +17,26 @@ public class ThreeCatProgramReference
     /// Gets or sets the cached program title (optional, filled in by the refresh task).
     /// </summary>
     public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the folder this program is written to, when it is not the destination folder of the
+    /// plugin (for instance the folder of an «Anime» or «Infantil» library).
+    /// </summary>
+    /// <remarks>
+    /// It is the root of the series folder, the folder the library indexes, not the series folder itself.
+    /// Empty means <see cref="PluginConfiguration.DestinationPath"/>.
+    /// </remarks>
+    public string DestinationPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the series folder the last run wrote (cache, filled in by the refresh task).
+    /// </summary>
+    /// <remarks>
+    /// It is what lets a program that moves to another library leave nothing behind: the next run removes
+    /// that folder —only when it holds nothing but files of this plugin and its <c>tvshow.nfo</c> names
+    /// this program— before writing the series in its new folder.
+    /// </remarks>
+    public string WrittenPath { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -49,6 +69,8 @@ public class PluginConfiguration : BasePluginConfiguration
         PruneExpired = true;
         MaxItemsPerProgram = 0;
         ClassifyPrograms = true;
+        SeparateAnime = true;
+        SeparateChildren = true;
     }
 
     /// <summary>
@@ -134,4 +156,32 @@ public class PluginConfiguration : BasePluginConfiguration
     /// off: the series then keep only the themes of their videos as genres.
     /// </remarks>
     public bool ClassifyPrograms { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether anime is told apart from the rest of the animation and
+    /// «Anime» is written as the first genre of its series, ahead of «Animació».
+    /// </summary>
+    /// <remarks>
+    /// 3Cat publishes no anime facet: it files «Bola de Drac» and «Doraemon» under the same
+    /// <c>PUFF_SDIBU</c> format as «Mironins» or «Louie». The plugin reads it from the page of the
+    /// program instead — the country of origin («Japó») and the internal collections the 3Cat web builds
+    /// its anime rails with — so no external database and no TVDB key are needed. The page of each
+    /// animated program is read once per refresh (six at a time, cached six hours) and it also brings the
+    /// original title of the series. Requires <see cref="ClassifyPrograms"/>. Enabled by default.
+    /// </remarks>
+    public bool SeparateAnime { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the children's programmes are told apart and «Infantil» is
+    /// written as a genre of their series, right after the kind.
+    /// </summary>
+    /// <remarks>
+    /// 3Cat files every video under an audience («Infantil», «Juvenil», «Tots els Públics») and builds the
+    /// SX3 rails with it, so the plugin reads it from the catalog it already downloads: no extra request.
+    /// The channel of the SX3 family is the fallback for a video without an audience. The genre is written
+    /// after the kind —«Anime», «Animació»— so a library filtered by «Infantil» groups the children's
+    /// programmes and keeps the animation filters working. Requires <see cref="ClassifyPrograms"/>.
+    /// Enabled by default.
+    /// </remarks>
+    public bool SeparateChildren { get; set; }
 }

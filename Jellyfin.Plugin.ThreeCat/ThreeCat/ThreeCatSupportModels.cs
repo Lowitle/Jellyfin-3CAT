@@ -102,6 +102,37 @@ public sealed class ThreeCatLabel
 }
 
 /// <summary>
+/// The audience targets of a video (<c>{ "target": [ { "id": "PUT_INF", "desc": "Infantil" } ] }</c>).
+/// </summary>
+/// <remarks>
+/// It is the classification the 3Cat portal builds its own rails with («Infantil», «Juvenil», «Tots els
+/// Públics»), and unlike the facets of the search endpoint it arrives with the catalog of every program,
+/// so reading it costs no extra request.
+/// </remarks>
+public sealed class ThreeCatTargets
+{
+    /// <summary>
+    /// Gets or sets the targets of the video.
+    /// </summary>
+    [JsonPropertyName("target")]
+    [JsonConverter(typeof(SingleOrArrayConverter<ThreeCatLabel>))]
+    public List<ThreeCatLabel>? Targets { get; set; }
+}
+
+/// <summary>
+/// The channels a video was broadcast on (<c>{ "canal": [ { "id": "PUC_S3", "desc": "Super3" } ] }</c>).
+/// </summary>
+public sealed class ThreeCatVideoChannels
+{
+    /// <summary>
+    /// Gets or sets the channels of the video.
+    /// </summary>
+    [JsonPropertyName("canal")]
+    [JsonConverter(typeof(SingleOrArrayConverter<ThreeCatLabel>))]
+    public List<ThreeCatLabel>? Channels { get; set; }
+}
+
+/// <summary>
 /// An image of the catalog (<c>text</c> holds the URL, <c>mida</c> the size and <c>rel_name</c> the role).
 /// </summary>
 public sealed class ThreeCatImage

@@ -134,6 +134,11 @@ public sealed class ThreeCatSearchProgram
 /// classification is turned off or the program appears in no known facet. It is the first genre of the
 /// series, so the value the page shows is the value the library filters by.
 /// </param>
+/// <param name="Children">
+/// Whether the program is broadcast on the SX3 channels, which is the only audience the search endpoint
+/// publishes. The synchronization reads the audience of every video, so the genre of the series is more
+/// precise than this flag; the page uses it to mark and filter the children's programs.
+/// </param>
 public sealed record ThreeCatCatalogProgram(
     string Id,
     string Title,
@@ -144,4 +149,5 @@ public sealed record ThreeCatCatalogProgram(
     string? AgeRating,
     string? Published,
     bool HasVideo,
-    string? Category = null);
+    string? Category = null,
+    bool Children = false);

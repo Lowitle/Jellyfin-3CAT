@@ -124,6 +124,45 @@ public static class LibraryPath
         => Directory.Exists(path) && Probe(path).Writable;
 
     /// <summary>
+    /// Tells whether two paths point at the same folder, comparing them the way the platform does.
+    /// </summary>
+    /// <param name="left">First path.</param>
+    /// <param name="right">Second path.</param>
+    /// <returns><c>true</c> when both paths are the same folder.</returns>
+    public static bool SamePath(string? left, string? right)
+    {
+        var first = NormalizeOrNull(left);
+        var second = NormalizeOrNull(right);
+
+        if (first is null || second is null)
+        {
+            return false;
+        }
+
+        return string.Equals(
+            first,
+            second,
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
+    private static string? NormalizeOrNull(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Normalize(path.Trim());
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or SecurityException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Lists the folders of the server that Jellyfin can write into. Used to help the user pick a
     /// destination when the configured one is not mounted.
     /// </summary>
