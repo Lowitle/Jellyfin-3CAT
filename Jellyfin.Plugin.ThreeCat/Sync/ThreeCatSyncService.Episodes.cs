@@ -25,7 +25,23 @@ public sealed partial class ThreeCatSyncService
         var media = await _client.GetMediaAsync(videoId, cancellationToken).ConfigureAwait(false);
         var info = media?.Info;
         var url = ThreeCatClient.PickFile(media);
-        var title = FirstNonEmpty(info?.Title, video.Title, video.FriendlyName, $"Episodio {number}");
+        var aired = info?.Broadcast ?? video.Broadcast ?? video.Published;
+        var special = season == EpisodeNumbering.SpecialsSeason;
+
+        // The numbering and the air date already travel in the file name (SxxEyy and «AAAA-MM-DD -
+        // …» for the specials), so they are removed from the title Jellyfin reads.
+        var title = FirstNonEmpty(
+            info?.Title,
+            video.Title,
+            video.FriendlyName,
+            special ? "Especial" : $"Episodio {number}");
+
+        var episodeTitle = EpisodeNumbering.StripNumber(StripSeriesPrefix(title, seriesTitle));
+
+        if (special)
+        {
+            episodeTitle = EpisodeNumbering.WithAirDate(episodeTitle, aired);
+        }
 
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -48,11 +64,11 @@ public sealed partial class ThreeCatSyncService
         {
             Season = season,
             Episode = number,
-            Title = StripSeriesPrefix(title, seriesTitle),
+            Title = episodeTitle,
             Plot = HtmlText.FromHtml(info?.Description),
             Url = url,
             Subtitles = subtitles,
-            Aired = info?.Broadcast ?? video.Broadcast ?? video.Published,
+            Aired = aired,
 
             // informacio.durada.milisegons is the reliable duration; the catalog «durada» arrives as
             // hh:mm:ss:ff and 3Cat itself flags it as unreliable.

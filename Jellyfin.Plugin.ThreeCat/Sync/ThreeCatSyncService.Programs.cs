@@ -64,23 +64,49 @@ public sealed partial class ThreeCatSyncService
 
         var usable = page.Items.Where(video => !string.IsNullOrWhiteSpace(video.Id)).ToList();
         var seriesTitle = ResolveSeriesTitle(usable, reference, programId);
-        var root = ResolveRoot(configuration, reference);
+
+        // The series is always written in the destination folder of the plugin, which is the library the
+        // plugin owns and the one Jellyfin reimports after a migration. The folder a program can be
+        // assigned to is a second copy, so a library the user curates («Anime», «Infantil»...) keeps
+        // seeing the program without taking over its files.
+        var root = configuration.DestinationPath.Trim();
         var seriesPath = StrmLibrary.SeriesFolder(root, seriesTitle);
+        var mirrorRoot = ResolveMirrorRoot(configuration, reference);
+        var mirrorPath = mirrorRoot is null ? null : StrmLibrary.SeriesFolder(mirrorRoot, seriesTitle);
 
-        var seasonNumbered = usable.All(video => video.Season is > 0);
-        var episodeNumbered = usable.All(video => video.Chapter is > 0);
+        // 1.5.0.0 renames every episode file, so a folder written by an older build holds the same
+        // episodes under the old names. It is deleted before writing it again — only when it is a
+        // folder of this plugin for this program — so the library does not show both schemes. The
+        // mirror is migrated too: the episode names must match on both sides.
+        if (configuration.NamingVersion < PluginConfiguration.CurrentNamingVersion)
+        {
+            DeleteForMigration(seriesPath, programId, seriesTitle);
+            if (mirrorPath is not null)
+            {
+                DeleteForMigration(mirrorPath, programId, seriesTitle);
+            }
+        }
 
-        // 3Cat publishes the catalog newest first; the episodes are ordered by broadcast date so the
-        // fallback numbering (programs without «capitol», typically the daily magazines) follows the
-        // order the program was aired in.
+        // 3Cat publishes the numbering in the title («T22xC6 - …»), the one its website shows. The
+        // catalog fields «capitol» (a counter that runs over the whole program) and
+        // «capitol_temporada» (an index that restarts in every published batch) do not match it,
+        // so they are not used: they were the source of «S06E907» for a chapter of the season 22.
         var ordered = usable
             .OrderBy(video => video.Broadcast ?? video.Published ?? DateTimeOffset.MinValue)
             .ThenBy(video => video.Id, StringComparer.Ordinal)
             .ToList();
 
+        // The air order is what the specials and the programs without numbering are numbered with,
+        // so the oldest video of a season keeps its number when 3Cat repeats one.
+        var slots = EpisodeNumbering.Assign(
+            ordered
+                .Select(video => FirstNonEmptyOrNull(video.Title, video.FriendlyName))
+                .ToList());
+
         var episodes = new List<LibraryEpisode>();
         var expired = new List<(int Season, int Episode, string Title)>();
         var skipped = 0;
+        var duplicates = 0;
         var now = DateTimeOffset.UtcNow;
 
         for (var index = 0; index < ordered.Count; index++)
@@ -88,8 +114,19 @@ public sealed partial class ThreeCatSyncService
             cancellationToken.ThrowIfCancellationRequested();
 
             var video = ordered[index];
-            var season = seasonNumbered ? video.Season!.Value : 1;
-            var number = episodeNumbered ? video.Chapter!.Value : index + 1;
+            var slot = slots[index];
+
+            if (slot.IsDuplicate)
+            {
+                // The same video published twice: writing it again would leave two files of the same
+                // episode in the season folder.
+                duplicates++;
+                reportProgress((index + 1d) / ordered.Count);
+                continue;
+            }
+
+            var season = slot.Season;
+            var number = slot.Episode;
 
             if (configuration.PruneExpired && video.Expires is { } expires && expires <= now)
             {
@@ -130,17 +167,25 @@ public sealed partial class ThreeCatSyncService
 
         if (episodes.Count == 0)
         {
-            var pruned = PruneExpiredFiles(seriesPath, seriesTitle, expired);
+            var pruned = PruneExpiredFiles(seriesPath, seriesTitle, expired)
+                + PruneExpiredFiles(mirrorPath, seriesTitle, expired);
+
             if (pruned > 0)
             {
                 _libraryMonitor.ReportFileSystemChanged(seriesPath);
+                if (mirrorPath is not null)
+                {
+                    _libraryMonitor.ReportFileSystemChanged(mirrorPath);
+                }
             }
 
             _logger.LogWarning(
-                "3Cat: no se pudo resolver ningún vídeo de «{Series}» ({Skipped} sin URL reproducible, {Expired} caducados)",
+                "3Cat: no se pudo resolver ningún vídeo de «{Series}» ({Skipped} sin URL reproducible, "
+                + "{Expired} caducados, {Duplicates} duplicados)",
                 seriesTitle,
                 skipped,
-                expired.Count);
+                expired.Count,
+                duplicates);
 
             return 0;
         }
@@ -153,62 +198,85 @@ public sealed partial class ThreeCatSyncService
             usable,
             cancellationToken).ConfigureAwait(false);
 
-        var result = StrmLibrary.Write(
-            root,
-            BuildSeriesMetadata(programId, seriesTitle, classification, originalTitle),
-            episodes,
-            new LibraryWriteOptions
-            {
-                WriteNfo = configuration.WriteNfo,
-                WriteSubtitles = configuration.WriteSubtitles,
-                DeleteObsolete = configuration.DeleteObsolete
-            });
+        var options = new LibraryWriteOptions
+        {
+            WriteNfo = configuration.WriteNfo,
+            WriteSubtitles = configuration.WriteSubtitles,
+            DeleteObsolete = configuration.DeleteObsolete
+        };
 
+        var series = BuildSeriesMetadata(programId, seriesTitle, classification, originalTitle);
+        var result = StrmLibrary.Write(root, series, episodes, options);
         var program = FindProgramNode(usable);
+
         if (program is not null)
         {
             await SaveArtworkAsync(program, result.SeriesPath, cancellationToken).ConfigureAwait(false);
         }
 
         var removedExpired = PruneExpiredFiles(result.SeriesPath, seriesTitle, expired);
+        var mirror = result with { FilesWritten = 0, FilesRemoved = 0 };
+
+        // The mirror is a second, independent write: Jellyfin indexes each library folder on its own, so
+        // the copy shares nothing with the first one — not even the «watched» state — and removing it
+        // never touches the library of the plugin.
+        if (mirrorRoot is not null)
+        {
+            mirror = StrmLibrary.Write(mirrorRoot, series, episodes, options);
+            CopyArtwork(result.SeriesPath, mirror.SeriesPath);
+            removedExpired += PruneExpiredFiles(mirror.SeriesPath, seriesTitle, expired);
+            _libraryMonitor.ReportFileSystemChanged(mirror.SeriesPath);
+        }
 
         RemoveMovedSeries(reference, programId, result.SeriesPath);
+        RemoveMovedMirror(reference, programId, mirrorRoot is null ? null : mirror.SeriesPath);
 
         _libraryMonitor.ReportFileSystemChanged(result.SeriesPath);
 
+        if (mirrorRoot is not null)
+        {
+            _logger.LogInformation(
+                "3Cat: {Series} → copia en {Mirror} ({Files} archivos escritos, {Removed} obsoletos eliminados)",
+                seriesTitle,
+                mirrorRoot,
+                mirror.FilesWritten,
+                mirror.FilesRemoved);
+        }
+
         _logger.LogInformation(
-            "3Cat: {Series} → {Episodes} episodios ({Skipped} sin URL, {Expired} caducados), "
-            + "{Files} archivos escritos, {Removed} obsoletos eliminados",
+            "3Cat: {Series} → {Episodes} episodios ({Skipped} sin URL, {Expired} caducados, "
+            + "{Duplicates} duplicados), {Files} archivos escritos, {Removed} obsoletos eliminados",
             seriesTitle,
             result.EpisodesWritten,
             skipped,
             expired.Count,
+            duplicates,
             result.FilesWritten,
             result.FilesRemoved + removedExpired);
 
-        return result.FilesWritten;
+        return result.FilesWritten + mirror.FilesWritten;
     }
 
     /// <summary>
-    /// Resolves the folder a program is written to: its own folder when the user assigned the program to
-    /// another library, the destination folder of the plugin otherwise.
+    /// Resolves the folder of the second library a program is mirrored to: the folder the user assigned,
+    /// or <c>null</c> when the program is not mirrored.
     /// </summary>
     /// <param name="configuration">Plugin configuration.</param>
     /// <param name="reference">Program reference.</param>
-    /// <returns>The folder the series folder of the program is written to.</returns>
+    /// <returns>The library root of the mirror, or <c>null</c> when there is none.</returns>
     /// <remarks>
-    /// A folder that is not mounted, is not writable or was moved falls back to the destination folder of
-    /// the plugin: one bad assignment must not leave a program without its episodes, and the warning says
-    /// which program and which folder were ignored.
+    /// A folder that is not mounted, is not writable or was moved is ignored: one bad assignment must not
+    /// leave a program without its episodes, and the warning says which program and which folder were
+    /// skipped. A folder that is the destination folder of the plugin is not a mirror either, or every
+    /// episode would be written twice in the same place.
     /// </remarks>
-    private string ResolveRoot(PluginConfiguration configuration, ThreeCatProgramReference reference)
+    private string? ResolveMirrorRoot(PluginConfiguration configuration, ThreeCatProgramReference reference)
     {
-        var fallback = configuration.DestinationPath.Trim();
         var configured = reference.DestinationPath?.Trim();
 
-        if (string.IsNullOrEmpty(configured))
+        if (string.IsNullOrEmpty(configured) || LibraryPath.SamePath(configured, configuration.DestinationPath.Trim()))
         {
-            return fallback;
+            return null;
         }
 
         var check = LibraryPath.Check(configured);
@@ -219,17 +287,43 @@ public sealed partial class ThreeCatSyncService
 
         _logger.LogWarning(
             "3Cat: la carpeta «{Path}» asignada al programa {ProgramId} no se puede usar ({Reason}); "
-            + "se escribe en la carpeta de destino {Root}",
+            + "el programa se escribe solo en la carpeta de destino {Root}",
             configured,
             reference.Id,
             check.Error ?? "no existe o no admite escritura",
-            fallback);
+            configuration.DestinationPath.Trim());
 
-        return fallback;
+        return null;
     }
 
     /// <summary>
-    /// Removes the series folder a previous run wrote when the program has moved to another library, and
+    /// Deletes the series folder an older build wrote, before it is written again with the numbering of
+    /// the current version.
+    /// </summary>
+    /// <param name="seriesPath">Series folder, or <c>null</c> when there is none.</param>
+    /// <param name="programId">3Cat program id, used to make sure the folder is the one of this program.</param>
+    /// <param name="seriesTitle">Series title, for the log.</param>
+    private void DeleteForMigration(string? seriesPath, string programId, string seriesTitle)
+    {
+        if (string.IsNullOrEmpty(seriesPath) || !StrmLibrary.TryDeleteSeriesFolder(seriesPath, programId))
+        {
+            return;
+        }
+
+        var parent = Path.GetDirectoryName(seriesPath);
+        if (!string.IsNullOrEmpty(parent))
+        {
+            _libraryMonitor.ReportFileSystemChanged(parent);
+        }
+
+        _logger.LogInformation(
+            "3Cat: se eliminó la carpeta de «{Series}» ({Path}) para reescribirla con la numeración nueva",
+            seriesTitle,
+            seriesPath);
+    }
+
+    /// <summary>
+    /// Removes the series folder a previous run wrote when the series has moved to another folder, and
     /// records the folder of this run.
     /// </summary>
     /// <param name="reference">Program reference, whose <c>WrittenPath</c> is updated.</param>
@@ -244,8 +338,36 @@ public sealed partial class ThreeCatSyncService
     {
         var previous = reference.WrittenPath?.Trim();
         reference.WrittenPath = seriesPath;
+        RemoveMovedFolder(previous, seriesPath, programId, "biblioteca del plugin");
+    }
 
-        if (string.IsNullOrEmpty(previous) || LibraryPath.SamePath(previous, seriesPath))
+    /// <summary>
+    /// Removes the mirrored series folder a previous run wrote — when the series has moved inside the
+    /// second library, has been renamed or the user has cleared the mirror — and records the folder of
+    /// this run.
+    /// </summary>
+    /// <param name="reference">Program reference, whose <c>WrittenMirror</c> is updated.</param>
+    /// <param name="programId">3Cat program id, used to make sure the old folder is the one of this program.</param>
+    /// <param name="seriesPath">Mirrored folder written by this run, or <c>null</c> when there is no mirror.</param>
+    private void RemoveMovedMirror(ThreeCatProgramReference reference, string programId, string? seriesPath)
+    {
+        var previous = reference.WrittenMirror?.Trim();
+        reference.WrittenMirror = seriesPath ?? string.Empty;
+        RemoveMovedFolder(previous, seriesPath, programId, "biblioteca espejo");
+    }
+
+    /// <summary>
+    /// Removes the series folder of a previous run, whatever the reason the series is not written there
+    /// anymore, and only when the folder is the one of this program.
+    /// </summary>
+    /// <param name="previous">Folder of the previous run, if any.</param>
+    /// <param name="current">Folder of this run, or <c>null</c> when it is not written anymore.</param>
+    /// <param name="programId">3Cat program id, used to make sure the old folder is the one of this program.</param>
+    /// <param name="library">Which library the folder belongs to, for the log.</param>
+    private void RemoveMovedFolder(string? previous, string? current, string programId, string library)
+    {
+        if (string.IsNullOrEmpty(previous)
+            || (current is not null && LibraryPath.SamePath(previous, current)))
         {
             return;
         }
@@ -253,10 +375,11 @@ public sealed partial class ThreeCatSyncService
         if (!StrmLibrary.TryDeleteSeriesFolder(previous, programId))
         {
             _logger.LogInformation(
-                "3Cat: «{Series}» se escribió antes en {Previous}; no se elimina porque no es una carpeta "
-                + "del plugin para este programa",
-                Path.GetFileName(seriesPath),
-                previous);
+                "3Cat: «{Series}» se escribió antes en {Previous} ({Library}); no se elimina porque no es una "
+                + "carpeta del plugin para este programa",
+                Path.GetFileName(previous),
+                previous,
+                library);
 
             return;
         }
@@ -268,9 +391,10 @@ public sealed partial class ThreeCatSyncService
         }
 
         _logger.LogInformation(
-            "3Cat: «{Series}» cambió de biblioteca; se eliminó la carpeta anterior {Previous}",
-            Path.GetFileName(seriesPath),
-            previous);
+            "3Cat: «{Series}» ya no se escribe en {Previous} ({Library}); se eliminó la carpeta anterior",
+            Path.GetFileName(previous),
+            previous,
+            library);
     }
 
     /// <summary>

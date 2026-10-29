@@ -93,20 +93,22 @@ public sealed partial class ThreeCatSyncService
         }
 
         progress?.Report(100);
-        SaveWrittenPaths(references);
+        SaveRunState(references);
         _logger.LogInformation("3Cat: sincronización completada, {Files} archivos escritos", totalWritten);
     }
 
     /// <summary>
     /// Stores the series folder written for each program, so the next run can clean up after a program
-    /// that moved to another library.
+    /// that moved to another library, and the naming scheme the library has now.
     /// </summary>
     /// <param name="references">Programs of the run, with the folder each one was written to.</param>
     /// <remarks>
     /// The configuration is read again from the plugin instead of saving the object of the run: the user
-    /// may have saved the page while the task was writing, and that save must not be undone.
+    /// may have saved the page while the task was writing, and that save must not be undone. The naming
+    /// version is only raised once the run has finished, so an interrupted run rewrites the folders it
+    /// did not reach on the next one.
     /// </remarks>
-    private void SaveWrittenPaths(IReadOnlyList<ThreeCatProgramReference> references)
+    private void SaveRunState(IReadOnlyList<ThreeCatProgramReference> references)
     {
         var plugin = Plugin.Instance;
         if (plugin is null || plugin.Configuration.Programs is not { Count: > 0 } programs)
@@ -117,6 +119,12 @@ public sealed partial class ThreeCatSyncService
         var configuration = plugin.Configuration;
         var changed = false;
 
+        if (configuration.NamingVersion < PluginConfiguration.CurrentNamingVersion)
+        {
+            configuration.NamingVersion = PluginConfiguration.CurrentNamingVersion;
+            changed = true;
+        }
+
         foreach (var program in programs)
         {
             var id = ThreeCatClient.NormalizeReference(program.Id);
@@ -126,15 +134,22 @@ public sealed partial class ThreeCatSyncService
                     id,
                     StringComparison.Ordinal));
 
-            if (reference is null
-                || string.IsNullOrEmpty(reference.WrittenPath)
-                || string.Equals(program.WrittenPath, reference.WrittenPath, StringComparison.Ordinal))
+            if (reference is null)
             {
                 continue;
             }
 
-            program.WrittenPath = reference.WrittenPath;
-            changed = true;
+            if (!string.Equals(program.WrittenPath, reference.WrittenPath, StringComparison.Ordinal))
+            {
+                program.WrittenPath = reference.WrittenPath;
+                changed = true;
+            }
+
+            if (!string.Equals(program.WrittenMirror, reference.WrittenMirror, StringComparison.Ordinal))
+            {
+                program.WrittenMirror = reference.WrittenMirror;
+                changed = true;
+            }
         }
 
         if (!changed)

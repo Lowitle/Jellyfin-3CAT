@@ -15,14 +15,18 @@ public sealed class ThreeCatVideo
     public string? Id { get; set; }
 
     /// <summary>
-    /// Gets or sets the chapter number. It is 3Cat's own numbering, which does not match TVDB/TMDB.
+    /// Gets or sets the chapter number. It is a counter that runs over the whole program
+    /// («907» for the chapter 6 of the season 22), so the synchronization does not use it: see
+    /// <see cref="Sync.EpisodeNumbering"/>.
     /// </summary>
     [JsonPropertyName("capitol")]
     [JsonConverter(typeof(FlexibleInt32Converter))]
     public int? Chapter { get; set; }
 
     /// <summary>
-    /// Gets or sets the season number (-1 when 3Cat publishes none).
+    /// Gets or sets the number 3Cat publishes in <c>capitol_temporada</c>, which is the chapter
+    /// inside its season and not the season (-1 when 3Cat publishes none). The synchronization does
+    /// not use it: the season comes from the title, which is the numbering the 3Cat website shows.
     /// </summary>
     [JsonPropertyName("capitol_temporada")]
     [JsonConverter(typeof(FlexibleInt32Converter))]

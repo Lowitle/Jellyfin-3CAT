@@ -19,12 +19,12 @@ public class ThreeCatProgramReference
     public string Title { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the folder this program is written to, when it is not the destination folder of the
-    /// plugin (for instance the folder of an «Anime» or «Infantil» library).
+    /// Gets or sets the folder of a second library the program is mirrored to, on top of the destination
+    /// folder of the plugin (for instance the folder of an «Anime» or «Infantil» library).
     /// </summary>
     /// <remarks>
     /// It is the root of the series folder, the folder the library indexes, not the series folder itself.
-    /// Empty means <see cref="PluginConfiguration.DestinationPath"/>.
+    /// Empty means the program is written only once, in <see cref="PluginConfiguration.DestinationPath"/>.
     /// </remarks>
     public string DestinationPath { get; set; } = string.Empty;
 
@@ -32,11 +32,21 @@ public class ThreeCatProgramReference
     /// Gets or sets the series folder the last run wrote (cache, filled in by the refresh task).
     /// </summary>
     /// <remarks>
-    /// It is what lets a program that moves to another library leave nothing behind: the next run removes
-    /// that folder —only when it holds nothing but files of this plugin and its <c>tvshow.nfo</c> names
-    /// this program— before writing the series in its new folder.
+    /// It is what lets a program that changes its folder leave nothing behind: the next run removes that
+    /// folder —only when it holds nothing but files of this plugin and its <c>tvshow.nfo</c> names this
+    /// program— before writing the series in its new folder.
     /// </remarks>
     public string WrittenPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the mirrored series folder the last run wrote (cache, filled in by the refresh task).
+    /// </summary>
+    /// <remarks>
+    /// Same as <see cref="WrittenPath"/> for the copy in the second library: it is what removes the mirror
+    /// when the user clears the folder, and it also catches the copy left in the old folder when the
+    /// series is renamed.
+    /// </remarks>
+    public string WrittenMirror { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -53,6 +63,16 @@ public class PluginConfiguration : BasePluginConfiguration
     /// serializer ignores the elements of a configuration written by an older build.
     /// </remarks>
     public const int CurrentVersion = 2;
+
+    /// <summary>
+    /// Version of the file naming scheme written by this build.
+    /// </summary>
+    /// <remarks>
+    /// It is stored in <see cref="NamingVersion"/> and it is not part of
+    /// <see cref="ConfigurationVersion"/>: it records what the library on disk looks like, so a plugin
+    /// update that renames the episodes makes the next run rewrite the series folders.
+    /// </remarks>
+    public const int CurrentNamingVersion = 1;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PluginConfiguration"/> class.
@@ -77,6 +97,18 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the version of the configuration schema, used to migrate stored settings.
     /// </summary>
     public int ConfigurationVersion { get; set; }
+
+    /// <summary>
+    /// Gets or sets the version of the file naming scheme the library was last written with.
+    /// </summary>
+    /// <remarks>
+    /// The scheme changed in 1.5.0.0: the episodes are numbered with the season and the chapter of the
+    /// title («T22xC6 - Visita als inferns» → <c>Serie - S22E06 - Visita als inferns</c>), so the files of
+    /// a library written by an older build carry another name. The synchronization deletes the series
+    /// folder before writing it again while this value is lower than <see cref="CurrentNamingVersion"/>,
+    /// so the library does not keep the two schemes side by side.
+    /// </remarks>
+    public int NamingVersion { get; set; }
 
     /// <summary>
     /// Gets or sets the programs to mirror.

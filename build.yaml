@@ -1,7 +1,7 @@
 ---
 name: "3Cat"
 guid: "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-version: "1.4.1.0"
+version: "1.5.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Crea una biblioteca de series con el catálogo a la carta de 3Cat (.strm + metadatos + subtítulos)."
@@ -16,6 +16,30 @@ owner: "Lowitle"
 artifacts:
   - "Jellyfin.Plugin.ThreeCat.dll"
 changelog: >
+  1.5.0.0: los episodios se numeran con la temporada y el capítulo que 3Cat escribe en el título
+  («T22xC6 - Visita als inferns» → temporada 22, capítulo 6), que es la numeración que muestra su web.
+  El plugin usaba el campo «capitol» como capítulo, pero es un contador que corre por todo el programa
+  (el capítulo 6 de la temporada 22 llega como 907), y el campo «capitol_temporada» es el capítulo
+  dentro de la temporada, no la temporada: «El detectiu Conan» acababa con un solo episodio por
+  temporada y «Polònia» o «Crackòvia» se quedaban en la temporada 1. Ahora «Polònia» entra con las
+  temporadas 1 a 22 (879 emisiones), «Crackòvia» con la 2 a la 10 y «Conan» con la 1 a la 30. Las
+  emisiones que 3Cat no numera —especiales, «Gran Reserva», revetlles, resums de temporada— van a la
+  temporada 0 con la fecha de emisión delante del título («2026-10-27 - Especial confinament»), así
+  que se ordenan como se emitieron y no se pierde ninguna; los programas que no numeran nada (los
+  diarios tipo «Tarda oberta») se quedan en la temporada 1 en orden de emisión; los vídeos repetidos
+  literalmente se descartan y, si dos emisiones distintas comparten numeración, la segunda pasa a la
+  temporada 0. El título del episodio pierde el prefijo de la numeración, así que el fichero queda
+  limpio («El detectiu Conan - S22E06 - Visita als inferns», sin «T22xC6 - »). Como cambian los
+  nombres, la primera actualización reescribe la biblioteca: si la carpeta de una serie mezcla los
+  nombres viejos y los nuevos, borra esa carpeta y vuelve a lanzar «Actualizar 3Cat». La serie se
+  escribe siempre en la carpeta de destino del plugin (la biblioteca «3Cat») y la columna
+  «Biblioteca» de la lista de programas, ahora «También en», ya no mueve la serie: guarda una copia
+  en la carpeta de otra biblioteca de Jellyfin, así que «Anime» o «Infantil» siguen viendo sus
+  programas sin quedarse con los ficheros del plugin. La copia son los mismos ficheros ligeros
+  (.strm, .nfo, subtítulos y carátulas), por lo que cada biblioteca lleva su propio estado «visto»
+  y quitar la carpeta de la columna borra solo la copia. Además, el desplegable de la lista de
+  programas ya se puede leer en el tema oscuro: tenía el fondo transparente y el navegador lo
+  pintaba blanco con el texto claro encima.
   1.4.1.0: los vídeos vuelven a entrar en el catálogo. 3Cat publica el público y el canal de cada
   vídeo («targets» y «canals») como una lista suelta, y el plugin los esperaba envueltos en un objeto:
   la lectura de cada vídeo fallaba, el programa se quedaba sin emisiones y, sin episodios, no había ni

@@ -24,7 +24,7 @@ Verificado en vivo: el MP4 responde 200/206 con `Accept-Ranges: bytes`, `Access-
 
 ## Qué hace el plugin
 Plugin de "biblioteca virtual": resuelve el catálogo y materializa en una carpeta, por cada emisión:
-- `<Nombre> - S01E<capitol> - <titol>.strm` (una línea: la URL del MP4)
+- `<Nombre> - S<xx>E<yy> - <titol>.strm` (una línea: la URL del MP4), con la temporada y el capítulo del título de 3Cat (`T22xC6` → `S22E06`); los especiales van a `Season 0` con la fecha de emisión delante del título
 - `<mismo>.ca.srt` (subtítulos, conversión VTT → SRT)
 - `<mismo>.nfo` (título, temporada, episodio, fecha, descripción)
 - poster/thumb descargados del catálogo (`sdom=img`)
@@ -32,7 +32,7 @@ Plugin de "biblioteca virtual": resuelve el catálogo y materializa en una carpe
 Después dispara un escaneo de biblioteca (`ValidateMediaLibrary`). Tarea programada (`IScheduledTask`) + servicio (`IServerEntryPoint`) para refrescar periódicamente.
 
 ## Decisiones de diseño
-- **Numeración:** usar `capitol` de 3Cat como número de episodio (`S01E<capitol>`), porque es numeración propia (no casa con TVDB). Metadatos online desactivados para esa biblioteca; títulos desde `.nfo`.
+- **Numeración (corregida en 1.5.0.0):** la temporada y el capítulo salen del **título**, que es la numeración que muestra la web de 3Cat (`T22xC6 - Visita als inferns` → `S22E06`). Verificado en vivo el 27/10/2026 que `capitol` es un contador **global** del programa (el capítulo 6 de la temporada 22 llega como 907) y `capitol_temporada` es el capítulo **dentro** de su temporada, no la temporada: usarlos producía `S06E907` y dejaba «Polònia» y «Crackòvia» en `Season 1`. La temporada real viaja en `temporades` (`{"id":"PUTEMP_22","desc":"22a Temporada"}`) y coincide con la `T` del título en el 100 % de los casos comprobados, así que no se pide: el título es la única fuente. Sin numeración en el título, la emisión va a `Season 0` con la fecha delante (`2026-10-27 - Especial confinament`) si el programa numera otras, o a `Season 1` en orden de emisión si no numera ninguna. Ver `ROADMAP.md` §1. Metadatos online desactivados para esa biblioteca; títulos desde `.nfo`.
 - **Subtítulos:** convertir el VTT (sucio) a SRT con las 6 reglas: descartar cabeceras/Region/NOTE, punto a coma, solo el primer token tras `-->`, quitar marcado y entidades, no escribir líneas vacías, renumerar. Salida idéntica a la del script de producción.
 - **Idioma del audio:** el MP4 trae la pista etiquetada `eng` aunque es catalán; con `.strm` no se puede reetiquetar (se documenta).
 - **Clasificación por formato:** 3Cat no publica el formato del programa en el catálogo ni en el detalle, solo en las facetas del buscador (`api.3cat.cat/cercador/tot?facetes=format_contingut,tematica&filtres=...`). Esas facetas se barren una vez (24 peticiones, caché 30 min), se invierten en `programatv_id → formatos/temas` y el formato se escribe como **primer género** del `tvshow.nfo`, delante de los temas. Es una capa opcional sobre el catálogo: si el barrido falla, la serie queda sin clasificar en vez de romper la sincronización.
@@ -58,7 +58,7 @@ Después dispara un escaneo de biblioteca (`ValidateMediaLibrary`). Tarea progra
 - **Caducidad fija:** Doraemon entero caduca el 07/06/2027 23:59:59 (lo no bajado se pierde; el `.strm` pasará a 404).
 - **Geobloqueo ESPANYA:** el servidor debe salir por IP española; si no, `media.url` vacío para todo.
 - Audio etiquetado `eng` aunque es catalán.
-- `capitol` es numeración propia de 3Cat.
+- `capitol` es el contador global del episodio y `capitol_temporada`, el capítulo dentro de la temporada: ninguno de los dos es la temporada. La numeración que se usa es la del título (`T22xC6`).
 - Una emisión puede traer dos capítulos (`titol` separado por " / ").
 - Tamaño ~730 MB/24 min (~4 Mbps): el `.strm` no ocupa disco pero consume ancho de banda en cada reproducción; transcodifica si el cliente no hace direct play.
 - Leer el JSON siempre como UTF-8 (PowerShell 5.1 rompe acentos por tubería).
@@ -73,3 +73,18 @@ Nombre `Jellyfin.Plugin.ThreeCat`. Licencia **GPLv3** (obligada por enlazar con 
 - Guía de descarga: `C:\localapps\Descargar_de_3cat.cat.md`
 - Script portable: `C:\localapps\3cat-dl.ps1`
 - Implementación de producción: `Z:\projectes\Doraemon\pipeline\trescat.py`
+
+## Estado de la 1.5.0.0
+
+Detalle y decisiones en `ROADMAP.md`:
+
+1. **Hecho.** Numeración por el título (`S22E06`), sin el prefijo `T22xC6 - ` en el título del
+   episodio, especiales en `Season 0` con la fecha delante y duplicados descartados
+   (`Sync/EpisodeNumbering.cs`, tests en `EpisodeNumberingTests.cs`). Migración automática vía
+   `PluginConfiguration.NamingVersion`: la primera ejecución reescribe las carpetas con el esquema
+   viejo.
+2. **Hecho.** Desplegable de «Biblioteca» legible (fondo explícito en `.threeCatSelect` y sus
+   `option`).
+3. **Hecho.** La serie se escribe siempre en la carpeta del plugin y la columna «También en» guarda
+   una copia de los ficheros ligeros en otra biblioteca de Jellyfin (`CopyArtwork`, `WrittenMirror`).
+4. **Pendiente de decidir.** Importación de películas (`PUFF_FILM`).

@@ -115,11 +115,21 @@
 
             #ThreeCatConfigPage .threeCatSelect {
                 font: inherit;
-                color: inherit;
-                background: transparent;
+
+                /* The native list of a <select> is painted with the background colour of the
+                   control. It used to be «transparent», so the browser fell back to white and the
+                   light text the control inherits from the dark theme became unreadable. Fixed
+                   colours keep the open list legible in both themes. */
+                background-color: #14171c;
+                color: #e8e8e8;
                 border: 1px solid rgba(128, 128, 128, 0.6);
                 border-radius: 0.25em;
                 padding: 0.55em 0.4em;
+            }
+
+            #ThreeCatConfigPage .threeCatSelect option {
+                background-color: #14171c;
+                color: #e8e8e8;
             }
 
             #ThreeCatConfigPage .threeCatFilterToggle {
@@ -263,7 +273,7 @@
                                 <tr>
                                     <th style="width: 40%">Programa</th>
                                     <th style="width: 20%">Referencia</th>
-                                    <th style="width: 30%">Biblioteca</th>
+                                    <th style="width: 30%">También en</th>
                                     <th style="width: 10%"></th>
                                 </tr>
                             </thead>
@@ -276,13 +286,15 @@
                     </div>
 
                     <div class="fieldDescription">
-                        Por defecto todos los programas se escriben en la carpeta de destino del plugin. La
-                        columna «Biblioteca» deja mandar un programa a la carpeta de otra biblioteca de Jellyfin
-                        —«Anime», «Infantil», «Programas de TV»…— sin duplicar nada: el plugin escribe la serie
-                        en la carpeta que esa biblioteca ya indexa. Un programa que cambia de biblioteca se
-                        borra de la anterior en la siguiente actualización, siempre que esa carpeta solo tenga
-                        archivos del plugin. Si en la carpeta elegida ya hay una serie con el mismo nombre, el
-                        plugin escribe encima sus archivos de metadatos y episodios.
+                        Todos los programas se escriben en la carpeta de destino del plugin, que es la
+                        biblioteca «3Cat». La columna «También en» guarda además una copia de la serie en la
+                        carpeta de otra biblioteca de Jellyfin —«Anime», «Infantil», «Programas de TV»…— para
+                        que esa biblioteca la muestre con sus propias etiquetas. La copia son los mismos
+                        ficheros ligeros (<code>.strm</code>, <code>.nfo</code>, subtítulos e imágenes), así
+                        que la serie aparece dos veces en el servidor y cada biblioteca lleva su propio
+                        «visto»: quitarla de la columna borra solo la copia. Si en la carpeta elegida ya hay
+                        una serie con el mismo nombre, el plugin escribe encima sus archivos de metadatos y
+                        episodios.
                     </div>
 
                     <div id="ThreeCatCatalog"></div>
@@ -746,9 +758,9 @@
                 return typeof value === 'string' ? value.trim() : '';
             }
 
-            // The folders a program can be written to: the libraries of the server, plus the destination
-            // folder of the plugin (the empty value). A library with several folders offers one option per
-            // folder, because the folder —not the library— is what the task writes into.
+            // The folders a program can be mirrored to: the folders of the libraries of the server, plus
+            // the empty value (no copy). A library with several folders offers one option per folder,
+            // because the folder —not the library— is what the task writes into.
             function threeCatLibraryOptions(current) {
                 var options = [];
                 var seen = { '': true };
@@ -777,8 +789,8 @@
                 return options;
             }
 
-            // The cell of the «Biblioteca» column: the folder of a library of Jellyfin the program is
-            // written to, or the destination folder of the plugin when nothing is chosen.
+            // The cell of the «También en» column: the folder of a second library the program is copied
+            // to, on top of the destination folder of the plugin (the empty value).
             function threeCatProgramLibraryCell(program) {
                 var cell = threeCatElement('td', 'threeCatCellLibrary');
                 var current = threeCatPath(program.DestinationPath);
@@ -787,14 +799,14 @@
                     'ThreeCatProgramLibrary-' + program.Id,
                     current,
                     threeCatLibraryOptions(current),
-                    'Carpeta de destino del plugin',
+                    'Sin copia',
                     function (value) {
                         program.DestinationPath = value;
-                        threeCatStatus('Biblioteca de «' + (program.Title || program.Id)
+                        threeCatStatus('Copia de «' + (program.Title || program.Id)
                             + '» cambiada. Pulsa «Guardar» para aplicarla.');
                     });
 
-                select.title = current || 'Carpeta de destino del plugin';
+                select.title = current || 'Sin copia';
                 cell.appendChild(select);
                 return cell;
             }
@@ -855,7 +867,8 @@
                     Id: programId,
                     Title: title,
                     DestinationPath: '',
-                    WrittenPath: ''
+                    WrittenPath: '',
+                    WrittenMirror: ''
                 });
                 return true;
             }
@@ -1678,9 +1691,10 @@
                             Id: threeCatField(program, 'id') || '',
                             Title: threeCatField(program, 'title') || '',
                             DestinationPath: threeCatPath(threeCatField(program, 'destinationPath')),
-                            // The folder the last run wrote, kept so the page does not drop it: it is what
-                            // lets the task remove a series that moves to another library.
-                            WrittenPath: threeCatPath(threeCatField(program, 'writtenPath'))
+                            // The folders the last run wrote, kept so the page does not drop them: they are
+                            // what lets the task remove a series that is renamed or that loses its copy.
+                            WrittenPath: threeCatPath(threeCatField(program, 'writtenPath')),
+                            WrittenMirror: threeCatPath(threeCatField(program, 'writtenMirror'))
                         };
                     });
 
@@ -1726,7 +1740,8 @@
                             Id: program.Id,
                             Title: program.Title,
                             DestinationPath: threeCatPath(program.DestinationPath),
-                            WrittenPath: threeCatPath(program.WrittenPath)
+                            WrittenPath: threeCatPath(program.WrittenPath),
+                            WrittenMirror: threeCatPath(program.WrittenMirror)
                         };
                     });
                     config.DestinationPath = document.querySelector('#ThreeCatDestinationPath').value.trim();

@@ -108,19 +108,75 @@ public sealed partial class ThreeCatSyncService
     }
 
     /// <summary>
+    /// Copies the images of the series folder to the mirrored series folder, so the second library shows
+    /// the same artwork without downloading it again. Jellyfin reads the images from the folder of each
+    /// library, so the copy can not be a link to the first one.
+    /// </summary>
+    /// <param name="sourcePath">Series folder written in the library of the plugin.</param>
+    /// <param name="targetPath">Series folder of the mirror.</param>
+    private void CopyArtwork(string sourcePath, string targetPath)
+    {
+        if (string.IsNullOrEmpty(sourcePath) || string.IsNullOrEmpty(targetPath)
+            || !Directory.Exists(sourcePath))
+        {
+            return;
+        }
+
+        try
+        {
+            CopyArtworkFiles(sourcePath, targetPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The episodes are already written in the mirror: a picture that could not be copied must not
+            // abort the synchronization, and the next run copies it again.
+            _logger.LogWarning(ex, "3Cat: no se pudieron copiar las imágenes de {Source} a {Target}", sourcePath, targetPath);
+        }
+    }
+
+    /// <summary>
+    /// Copies the images of one series folder to another series folder, overwriting the pictures a
+    /// previous run left. Only the extensions Jellyfin reads as local artwork are copied, so the
+    /// <c>.strm</c>, the <c>.nfo</c> and the subtitles are left to the second write.
+    /// </summary>
+    /// <param name="sourcePath">Series folder written in the library of the plugin.</param>
+    /// <param name="targetPath">Series folder of the mirror.</param>
+    /// <returns>The number of images copied.</returns>
+    internal static int CopyArtworkFiles(string sourcePath, string targetPath)
+    {
+        var images = Directory
+            .EnumerateFiles(sourcePath)
+            .Where(file => Path.GetExtension(file).ToLowerInvariant() is ".jpg" or ".jpeg" or ".png" or ".webp")
+            .ToList();
+
+        if (images.Count == 0)
+        {
+            return 0;
+        }
+
+        Directory.CreateDirectory(targetPath);
+        foreach (var image in images)
+        {
+            File.Copy(image, Path.Combine(targetPath, Path.GetFileName(image)), true);
+        }
+
+        return images.Count;
+    }
+
+    /// <summary>
     /// Deletes the files of the episodes that 3Cat has expired. The catalog keeps publishing them
     /// until the program is refreshed, but their MP4 answers 404 from the expiry date on.
     /// </summary>
-    /// <param name="seriesPath">Series folder.</param>
+    /// <param name="seriesPath">Series folder, or <c>null</c> when the program is not mirrored.</param>
     /// <param name="seriesTitle">Series title, used to rebuild the file name.</param>
     /// <param name="expired">Expired episodes.</param>
     /// <returns>The number of files removed.</returns>
     private static int PruneExpiredFiles(
-        string seriesPath,
+        string? seriesPath,
         string seriesTitle,
         List<(int Season, int Episode, string Title)> expired)
     {
-        if (expired.Count == 0 || !Directory.Exists(seriesPath))
+        if (expired.Count == 0 || string.IsNullOrEmpty(seriesPath) || !Directory.Exists(seriesPath))
         {
             return 0;
         }
