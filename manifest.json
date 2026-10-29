@@ -8,6 +8,14 @@
   "category": "General",
   "versions": [
     {
+      "version": "1.5.0.0",
+      "changelog": "3Cat 1.5.0.0",
+      "targetAbi": "10.11.0.0",
+      "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.5.0.0/threecat_1.5.0.0.zip",
+      "checksum": "AF6E166FD3D0D489A13E9FDDEE9AE80B",
+      "timestamp": "2026-10-29T13:08:34Z"
+    },
+    {
       "version": "1.4.1.0",
       "changelog": "Los vídeos vuelven a entrar en el catálogo. 3Cat publica el público y el canal de cada vídeo («targets» y «canals») como una lista suelta, y el plugin los esperaba envueltos en un objeto, así que la lectura de cada vídeo fallaba: el programa se quedaba sin emisiones y, sin episodios, no había series, ni anime separado, ni bibliotecas que asignar. Ahora la lectura acepta las dos formas —la lista que devuelve api.3cat.cat y el objeto de las respuestas antiguas—, de modo que el público («Infantil», «Juvenil», «Tots els Públics») y el canal vuelven a clasificar cada programa. El barrido completo del catálogo lo deja en 1123 programas con vídeos de 2201 y 29 marcados como anime, con «El detectiu Conan» (385 emisiones), «Bola de Drac Z» (291), «Dr. Slump» (242) o «One piece» (229) listos para la biblioteca de anime.",
       "targetAbi": "10.11.0.0",
