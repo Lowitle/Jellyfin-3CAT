@@ -1,7 +1,7 @@
 ---
 name: "3Cat"
 guid: "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-version: "1.7.1.1"
+version: "1.8.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Crea una biblioteca de series con el catálogo a la carta de 3Cat (.strm + metadatos + subtítulos)."
@@ -16,6 +16,23 @@ owner: "Lowitle"
 artifacts:
   - "Jellyfin.Plugin.ThreeCat.dll"
 changelog: >
+  1.8.0.0: el emparejamiento deja de creerse las fechas que no son suyas y estrena anclas. 3Cat publica la
+  fecha de su propia emisión, así que en una serie doblada años después de estrenarse la fecha de cada vídeo
+  no tiene nada que ver con la del episodio: «Detectiu Conan» se emitió en TV3 a cinco capítulos por semana
+  desde 2001 mientras Japón lo emitía a uno por semana desde 1996, y por eso cada cinco vídeos las dos fechas
+  volvían a coincidir —46 de 385, todas falsas, y el resto a la temporada 0—. Ahora la fecha solo cuenta si
+  al menos la mitad de los vídeos con fecha caen en el día (o el día antes o después) de un episodio de TMDB;
+  si no, se descarta entera y la vista previa lo explica. Para los casos que ninguna fecha ni ningún título
+  puede resolver están las anclas, que se escriben con la numeración de los propios títulos de 3Cat y se
+  guardan por programa: «T1=1» (la temporada 1 de 3Cat empieza en el episodio 1 de TMDB), «T20=857»,
+  «T22xC6=906» o «T1xC1=S01E01», separadas por «;». El plugin coloca todas las anclas primero y después numera
+  el resto de cada temporada caminando la lista de TMDB hacia arriba y hacia abajo, parando en la temporada
+  siguiente o en el episodio que otra ancla ya ha reclamado; con doce anclas, «Detectiu Conan» pasa del 0 % de
+  cobertura al 85 % y se renumera con TMDB. La vista previa lista las temporadas de 3Cat con su rango de
+  «capitol» para escribir las anclas sin abrir el catálogo, marca cada vídeo con su contador en una columna
+  nueva, dice cuántas anclas se han podido colocar y avisa cuando las fechas se han descartado. El «capitol»
+  se publica en el 100 % de los programas (43 de 44 en una muestra de 60 de todos los formatos), mientras que
+  «capitol_temporada» falta en la mitad, así que la temporada sigue leyéndose del título.
   1.7.1.1: la vista previa del emparejamiento vuelve a enseñar la tabla. La página leía las respuestas del
   plugin en minúscula inicial («message», «title», «rows») y el servidor las publica en mayúscula
   («Message», «Title», «Rows»), así que probar una serie solo contestaba «undefined:», sin tabla, sin

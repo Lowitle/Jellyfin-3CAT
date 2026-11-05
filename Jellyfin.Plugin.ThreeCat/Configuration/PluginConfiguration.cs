@@ -45,6 +45,23 @@ public class ThreeCatProgramReference
     public string? TvdbId { get; set; }
 
     /// <summary>
+    /// Gets or sets the anchors of the mapping typed by the user (optional).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An anchor says which episode of the provider a video of 3Cat is, and the rest of the season is numbered by
+    /// walking the provider list up and down from it. The syntax is the one 3Cat already writes in its titles:
+    /// <c>T1=1</c> (the season 1 of 3Cat starts at the episode 1 of the provider), <c>T20=856</c>, <c>T22xC6=906</c>
+    /// or <c>T1xC1=S01E01</c>, separated by semicolons.
+    /// </para>
+    /// <para>
+    /// It is the only evidence that works for a series dubbed years after the original: the titles are
+    /// translated and the air dates are the ones of the dub, so neither of them ties the two catalogs.
+    /// </para>
+    /// </remarks>
+    public string? Anchors { get; set; }
+
+    /// <summary>
     /// Gets or sets the folder of a second library the program is mirrored to, on top of the destination
     /// folder of the plugin (for instance the folder of an «Anime» or «Infantil» library).
     /// </summary>

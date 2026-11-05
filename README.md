@@ -77,16 +77,25 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
   catálogo de 3Cat, que es lo de siempre, y TMDB. Con TMDB, el plugin empareja cada vídeo con el episodio
   que TMDB publica para la serie y escribe **la temporada y el episodio de TMDB** en el nombre del fichero,
   en el `.nfo` y en la carpeta `Season NN`, que es lo que hace que Jellyfin case la ficha online de cada
-  episodio. La evidencia se usa en este orden: fecha de emisión (el mismo día, luego ±1 día), título
-  normalizado (igualdad y después contención) y orden dentro del hueco entre dos parejas ya emparejadas,
-  solo cuando el hueco tiene el mismo número de vídeos que de episodios. Un episodio de TMDB nunca se asigna
-  dos veces y los huecos de su numeración se respetan (`S27E09` se queda en 9). Si el emparejamiento no
+  episodio. La evidencia se usa en este orden: **anclas** del usuario, fecha de emisión (el mismo día, luego
+  ±1 día) —solo si son densas, ver abajo—, título normalizado (igualdad y después contención) y orden dentro
+  del hueco entre dos parejas ya emparejadas, solo cuando el hueco tiene el mismo número de vídeos que de
+  episodios. Un episodio de TMDB nunca se asigna dos veces y los huecos de su numeración se respetan
+  (`S27E09` se queda en 9). Si el emparejamiento no
   cubre **la mitad** de los vídeos, si el dataset no resuelve el id, si no hay clave de TMDB o si TMDB no
   responde, la serie entera se queda con la numeración de 3Cat y el registro dice por qué: nunca queda una
   serie a medias, con huecos falsos y episodios repetidos. La página de configuración tiene una **vista
   previa** de la tabla «vídeo de 3Cat — episodio de TMDB» que no escribe ningún fichero, y cambiar la
   fuente de un programa reescribe su carpeta (solo si es del plugin y su `tvshow.nfo` nombra ese programa)
   porque Jellyfin reimporta esos episodios y se pierde el «visto» de esa serie.
+- **Anclas**: cuando el doblaje y el original no comparten nada —«Detectiu Conan» se dobló entre 2001 y
+  2025 y TMDB publica los episodios en japonés desde 1996, así que ni los títulos ni las fechas sirven— el
+  usuario puede escribir anclas con la misma sintaxis de los títulos de 3Cat: `T1=1` (la temporada 1 de 3Cat
+  empieza en el episodio 1 de TMDB), `T20=857`, `T22xC6=906` o `T1xC1=S01E01`, separadas por `;`. El plugin
+  coloca todas las anclas y después numera el resto de cada temporada caminando la lista de TMDB hacia arriba
+  y hacia abajo, parando en la temporada siguiente o en el episodio que otra ancla ya ha reclamado. Se ven en
+  la tabla de programas (columna **Anclas**) y en la propia vista previa, que además lista las temporadas de
+  3Cat con su `capitol` para escribirlas sin abrir el catálogo, y dice cuántas anclas se han podido colocar.
 - **MP4 progresivo**: cada `.strm` contiene la URL `media.url[0].file` del endpoint de detalle
   (`api-media.3cat.cat`), que responde 200/206 con `Accept-Ranges: bytes` y permite *seek* y
   transcodificación directa.
@@ -249,6 +258,17 @@ dotnet run --project tools/CatalogDump     # volcado del catálogo a CSV: la ent
   —también cuando no hay nada que emparejar— y, si la referencia encaja con varios programas, la página los
   ofrece para elegir uno con un clic. Desde la 1.7.1.0 el mensaje dice qué falta cuando falta algo: el id
   de TMDB, la clave de la API o la respuesta de TMDB.
+- Desde la 1.8.0.0 las fechas dejan de ser evidencia cuando son las de otro estreno. 3Cat publica la fecha
+  de **su** emisión: «Detectiu Conan» se emitió en TV3 de 2001 a 2025 mientras Japón lo emitía desde 1996,
+  y como el doblaje iba a cinco capítulos por semana y el original a uno, cada cinco vídeos las dos fechas
+  volvían a coincidir por puro azar —46 coincidencias de 385 vídeos, todas falsas—. Ahora la fecha solo
+  cuenta si al menos la mitad de los vídeos con fecha caen en el día (o el día antes o después) de un
+  episodio de TMDB; si no, se descarta entera para ese programa y la vista previa lo dice. El `capitol` de
+  3Cat, en cambio, sí se usa: el catálogo lo publica en el 100 % de los programas (43 de 44 en una muestra
+  de 60 programas de todos los formatos), es un contador continuo por bloques y conserva los huecos, así que
+  la vista previa lista las temporadas de 3Cat con su rango de `capitol` para escribir las anclas.
+  `capitol_temporada` no sirve como base (solo la mitad de los programas lo publican: Doraemon devuelve
+  `-1` en todos sus vídeos), así que la temporada sigue saliendo del título.
 
 - La clave de TMDB es del usuario y se guarda en la configuración del plugin (nunca en el registro): la
   página acepta tanto una clave v3 como un token de lectura v4 y los distingue por su forma. Sin clave,

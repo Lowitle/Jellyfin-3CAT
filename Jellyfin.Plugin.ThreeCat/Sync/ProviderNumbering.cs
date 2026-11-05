@@ -10,7 +10,13 @@ namespace Jellyfin.Plugin.ThreeCat.Sync;
 /// <param name="Title">Title published by 3Cat, with its numbering («T22xC6 - Visita als inferns»).</param>
 /// <param name="Aired">Air date published by 3Cat, or <c>null</c> when it publishes none.</param>
 /// <param name="Id">3Cat video id. It is only used to keep the rows of the report identifiable.</param>
-public sealed record ProviderVideo(string? Title, DateTimeOffset? Aired, string? Id)
+/// <param name="Chapter">
+/// The <c>capitol</c> 3Cat publishes: a counter that runs over the whole program and keeps the holes of the
+/// catalog («Detectiu Conan» jumps from 135 to 857 where 3Cat hosts no chapters). It is what tells where the
+/// catalog of 3Cat is not continuous; the numbering of the file is read from the title, see
+/// <see cref="EpisodeNumbering"/>.
+/// </param>
+public sealed record ProviderVideo(string? Title, DateTimeOffset? Aired, string? Id, int? Chapter = null)
 {
     /// <summary>
     /// Gets the day the video was aired, when 3Cat publishes one.
@@ -32,6 +38,33 @@ public sealed record ProviderVideo(string? Title, DateTimeOffset? Aired, string?
 /// <param name="Title">Episode title of the provider.</param>
 /// <param name="AirDate">Air date of the provider, or <c>null</c> when it publishes none.</param>
 public sealed record ProviderEpisode(int Season, int Episode, string? Title, DateOnly? AirDate);
+
+/// <summary>
+/// A season of 3Cat as the catalog publishes it, with the numbering and the counter it spans.
+/// </summary>
+/// <remarks>
+/// It is what the preview shows so an anchor can be written without reading the catalog by hand: «T20 · 2
+/// vídeos · T20C1–T20C2 · contador 857–858» says which season exists and where its counter starts.
+/// </remarks>
+/// <param name="Season">Season 3Cat writes in the titles of the block; 0 when none of them carries a numbering.</param>
+/// <param name="Videos">Videos of the block.</param>
+/// <param name="FirstChapter">First chapter of the block, or <c>null</c> when the titles carry no numbering.</param>
+/// <param name="LastChapter">Last chapter of the block, or <c>null</c>.</param>
+/// <param name="FirstCounter">First <c>capitol</c> of the block, or <c>null</c> when 3Cat publishes none.</param>
+/// <param name="LastCounter">Last <c>capitol</c> of the block, or <c>null</c>.</param>
+public sealed record ProviderBlock(
+    int Season,
+    int Videos,
+    int? FirstChapter,
+    int? LastChapter,
+    int? FirstCounter,
+    int? LastCounter)
+{
+    /// <summary>
+    /// Gets a value indicating whether the titles of the block carry the numbering of 3Cat («T22xC6»).
+    /// </summary>
+    public bool Numbered => Season > 0;
+}
 
 /// <summary>
 /// How a video of 3Cat was paired with an episode of the provider.
@@ -59,7 +92,14 @@ public enum ProviderMatch
     /// The video and the episode fall in the same gap between two already matched pairs and the gap has
     /// the same number of videos and episodes, so the order of the provider is the order of 3Cat.
     /// </summary>
-    Order = 3
+    Order = 3,
+
+    /// <summary>
+    /// The user typed an anchor («T1C1 = S01E01») and the video is on it or in the run of videos the anchor
+    /// numbers by walking the provider list, which is the only evidence that survives a dub aired years after
+    /// the original.
+    /// </summary>
+    Anchor = 4
 }
 
 /// <summary>
@@ -81,6 +121,13 @@ public sealed class ProviderNumberingResult
     /// <param name="byDate">Videos paired by air date.</param>
     /// <param name="byTitle">Videos paired by title.</param>
     /// <param name="byOrder">Videos paired by order inside a gap.</param>
+    /// <param name="byAnchor">Videos paired by an anchor typed by the user.</param>
+    /// <param name="anchors">Anchors the user typed, whether they could be placed or not.</param>
+    /// <param name="anchorsPlaced">Anchors that could be placed, the rest named a video or an episode that is not there.</param>
+    /// <param name="datesReliable">
+    /// Whether the air dates of 3Cat were used as evidence; <c>false</c> when they belong to another emission.
+    /// </param>
+    /// <param name="blocks">Seasons of 3Cat, for the preview.</param>
     /// <param name="duplicates">Videos dropped because 3Cat publishes them twice.</param>
     /// <param name="useThreeCat">Whether the coverage is below the threshold and 3Cat numbering wins.</param>
     /// <param name="reason">Why 3Cat numbering wins, ready for the log; <c>null</c> when it does not.</param>
@@ -91,6 +138,11 @@ public sealed class ProviderNumberingResult
         int byDate,
         int byTitle,
         int byOrder,
+        int byAnchor,
+        int anchors,
+        int anchorsPlaced,
+        bool datesReliable,
+        IReadOnlyList<ProviderBlock> blocks,
         int duplicates,
         bool useThreeCat,
         string? reason)
@@ -101,6 +153,11 @@ public sealed class ProviderNumberingResult
         ByDate = byDate;
         ByTitle = byTitle;
         ByOrder = byOrder;
+        ByAnchor = byAnchor;
+        Anchors = anchors;
+        AnchorsPlaced = anchorsPlaced;
+        DatesReliable = datesReliable;
+        Blocks = blocks;
         Duplicates = duplicates;
         UseThreeCat = useThreeCat;
         Reason = reason;
@@ -148,6 +205,43 @@ public sealed class ProviderNumberingResult
     public int ByOrder { get; }
 
     /// <summary>
+    /// Gets the number of videos paired by an anchor typed by the user, including the run of videos the anchor
+    /// numbers by walking the provider list.
+    /// </summary>
+    public int ByAnchor { get; }
+
+    /// <summary>
+    /// Gets the number of anchors the user typed, whether they could be placed or not.
+    /// </summary>
+    public int Anchors { get; }
+
+    /// <summary>
+    /// Gets the number of anchors that could be placed.
+    /// </summary>
+    /// <remarks>
+    /// An anchor is not placed when the video it names does not exist in the catalog —«T2xC1» of a season the user
+    /// remembers wrong— or when the episode it points at is already taken by another anchor. Comparing it with
+    /// <see cref="Anchors"/> is the fastest way to see that the text of the anchors is not what the user meant.
+    /// </remarks>
+    public int AnchorsPlaced { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the air dates of 3Cat were used as evidence.
+    /// </summary>
+    /// <remarks>
+    /// A program dubbed years after the original carries the dates of its own emission, so its videos only
+    /// fall on the provider dates by accident. When the dates are not dense enough to be a coincidence, the
+    /// whole pass is skipped and the preview says so, instead of pairing a chapter of 2001 with the episode
+    /// the provider aired that same day.
+    /// </remarks>
+    public bool DatesReliable { get; }
+
+    /// <summary>
+    /// Gets the seasons of 3Cat as its catalog publishes them, in air order.
+    /// </summary>
+    public IReadOnlyList<ProviderBlock> Blocks { get; }
+
+    /// <summary>
     /// Gets the number of videos 3Cat publishes twice, which are dropped as before.
     /// </summary>
     public int Duplicates { get; }
@@ -180,7 +274,7 @@ public sealed class ProviderNumberingResult
     /// <summary>
     /// Gets the number of videos paired with an episode of the provider.
     /// </summary>
-    public int Matched => ByDate + ByTitle + ByOrder;
+    public int Matched => ByDate + ByTitle + ByOrder + ByAnchor;
 
     /// <summary>
     /// Gets the share of videos paired with an episode of the provider (0 to 1).
@@ -214,7 +308,7 @@ public sealed class ProviderNumberingResult
 /// 3Cat. This is the same promise the plugin made before the option existed.
 /// </para>
 /// </remarks>
-public static class ProviderNumbering
+public static partial class ProviderNumbering
 {
     /// <summary>
     /// Share of videos that must be paired with an episode of the provider for its numbering to be used.
@@ -252,6 +346,18 @@ public static class ProviderNumbering
     internal const int OrderDateSample = 3;
 
     /// <summary>
+    /// Minimum share of the videos with a date that has to fall on the day of an episode of the provider for the
+    /// air dates to count as evidence.
+    /// </summary>
+    /// <remarks>
+    /// 3Cat publishes the date of its own emission: a series dubbed years after the original carries dates that
+    /// have nothing to do with the ones of the provider. A weekly original and a daily dub still fall on the
+    /// same day by accident once every five or ten videos, so a handful of exact matches is not a coincidence to
+    /// trust — only a dense one is. Half the videos, the same threshold the coverage uses.
+    /// </remarks>
+    internal const double MinimumDateDensity = 0.5;
+
+    /// <summary>
     /// Numbers the videos of a program with the episodes of a provider.
     /// </summary>
     /// <param name="videos">Videos of 3Cat, in air order.</param>
@@ -260,11 +366,16 @@ public static class ProviderNumbering
     /// Title of the series, used to drop the prefix of an episode title before comparing it
     /// («Doraemon, el gat còsmic - El gat còsmic» → «El gat còsmic»). Optional.
     /// </param>
+    /// <param name="anchors">
+    /// Anchors typed by the user («T1=1» — the season 1 of 3Cat is the episode 1 of the provider). Optional: they
+    /// are the only evidence that works when the dub and the original share neither titles nor dates.
+    /// </param>
     /// <returns>The slots, the evidence and the counters of the matching.</returns>
     public static ProviderNumberingResult Assign(
         IReadOnlyList<ProviderVideo> videos,
         IReadOnlyList<ProviderEpisode> episodes,
-        string? seriesTitle = null)
+        string? seriesTitle = null,
+        IReadOnlyList<ProviderAnchor>? anchors = null)
     {
         ArgumentNullException.ThrowIfNull(videos);
         ArgumentNullException.ThrowIfNull(episodes);
@@ -276,6 +387,9 @@ public static class ProviderNumbering
         Array.Fill(assigned, -1);
 
         var duplicates = FindDuplicates(videos, seriesTitle);
+        var blocks = BuildBlocks(videos);
+        var anchorList = anchors ?? [];
+        var anchorCount = anchorList.Count;
 
         // The duplicated videos are marked so every pass skips them: they would otherwise take the episode
         // of a video that is written.
@@ -300,7 +414,20 @@ public static class ProviderNumbering
 
         if (pool.Count == 0)
         {
-            return Finish(slots, methods, pairs, duplicates, 0, 0, 0, "el proveedor no publica episodios");
+            return Finish(
+                slots,
+                methods,
+                pairs,
+                duplicates,
+                0,
+                0,
+                0,
+                0,
+                anchorCount,
+                0,
+                datesReliable: false,
+                blocks,
+                "el proveedor no publica episodios");
         }
 
         var used = new bool[pool.Count];
@@ -342,9 +469,34 @@ public static class ProviderNumbering
             used[episode] = true;
         }
 
+        // Pass 0, the anchors typed by the user. They go first because they are the only instruction the user
+        // gives: no other evidence may take the episode an anchor claims.
+        var byAnchorCount = 0;
+        var anchorsPlaced = 0;
+
+        if (anchorList.Count > 0)
+        {
+            byAnchorCount = AlignByAnchors(
+                videos,
+                pool,
+                used,
+                assigned,
+                duplicates,
+                anchorList,
+                Take,
+                out anchorsPlaced);
+        }
+
+        // The air dates are only evidence when they are dense: a dub aired years after the original carries the
+        // dates of its own emission, and a weekly original against a daily dub falls on the same day once every
+        // five videos just by accident.
+        var datesReliable = DateEvidenceIsReliable(videos, byDate);
+
         // Passes 1 and 2, by air date.
-        var byDateCount = MatchByDate(videos, pool, used, byDate, assigned, seriesTitle, Take)
-            + MatchNextToTheDate(videos, pool, used, byDate, assigned, seriesTitle, Take);
+        var byDateCount = datesReliable
+            ? MatchByDate(videos, pool, used, byDate, assigned, seriesTitle, Take)
+                + MatchNextToTheDate(videos, pool, used, byDate, assigned, seriesTitle, Take)
+            : 0;
 
         // Passes 3 and 4, by title.
         var byTitleCount = MatchByTitle(videos, pool, used, byTitle, assigned, seriesTitle, Take)
@@ -353,7 +505,20 @@ public static class ProviderNumbering
         // Pass 5, by order inside the gaps left between the matched pairs.
         var byOrderCount = MatchByOrder(videos, pool, used, assigned, duplicates, Take);
 
-        return Finish(slots, methods, pairs, duplicates, byDateCount, byTitleCount, byOrderCount, null);
+        return Finish(
+            slots,
+            methods,
+            pairs,
+            duplicates,
+            byDateCount,
+            byTitleCount,
+            byOrderCount,
+            byAnchorCount,
+            anchorCount,
+            anchorsPlaced,
+            datesReliable,
+            blocks,
+            null);
     }
 
     /// <summary>
@@ -780,6 +945,11 @@ public static class ProviderNumbering
     /// <param name="byDate">Videos paired by air date.</param>
     /// <param name="byTitle">Videos paired by title.</param>
     /// <param name="byOrder">Videos paired by order.</param>
+    /// <param name="byAnchor">Videos paired by an anchor.</param>
+    /// <param name="anchors">Anchors the user typed.</param>
+    /// <param name="anchorsPlaced">Anchors that could be placed.</param>
+    /// <param name="datesReliable">Whether the air dates were used as evidence.</param>
+    /// <param name="blocks">Seasons of 3Cat.</param>
     /// <param name="forcedReason">Why 3Cat numbering wins, when the caller already knows it.</param>
     /// <returns>The result, with the coverage and the decision about the numbering.</returns>
     private static ProviderNumberingResult Finish(
@@ -790,6 +960,11 @@ public static class ProviderNumbering
         int byDate,
         int byTitle,
         int byOrder,
+        int byAnchor,
+        int anchors,
+        int anchorsPlaced,
+        bool datesReliable,
+        IReadOnlyList<ProviderBlock> blocks,
         string? forcedReason)
     {
         var special = 1;
@@ -813,7 +988,7 @@ public static class ProviderNumbering
         }
 
         var assignable = slots.Length - duplicateCount;
-        var matched = byDate + byTitle + byOrder;
+        var matched = byDate + byTitle + byOrder + byAnchor;
         var coverage = assignable <= 0 ? 0 : (double)matched / assignable;
 
         var reason = forcedReason;
@@ -829,6 +1004,11 @@ public static class ProviderNumbering
                 matched,
                 assignable,
                 coverage * 100);
+
+            if (anchors > 0 && byAnchor == 0)
+            {
+                reason += " y ninguna de las anclas encaja con un vídeo de 3Cat";
+            }
         }
 
         return new ProviderNumberingResult(
@@ -838,9 +1018,77 @@ public static class ProviderNumbering
             byDate,
             byTitle,
             byOrder,
+            byAnchor,
+            anchors,
+            anchorsPlaced,
+            datesReliable,
+            blocks,
             duplicateCount,
             reason is not null,
             reason);
+    }
+
+    /// <summary>
+    /// Tells whether the air dates of 3Cat may be used as evidence.
+    /// </summary>
+    /// <param name="videos">Videos of 3Cat.</param>
+    /// <param name="byDate">Episodes of the provider indexed by air date.</param>
+    /// <returns><c>true</c> when the dates are dense enough to be the same emission.</returns>
+    /// <remarks>
+    /// The measure is how many videos fall on the day of an episode of the provider: a dub aired years later only
+    /// touches the calendar of the original by accident, once every five or ten videos, so those few hits are
+    /// noise. Requiring half the videos to hit keeps the series whose dates are the real thing —a program aired on
+    /// 3Cat and on the provider in the same week— and drops the ones that are two different emissions.
+    /// </remarks>
+    private static bool DateEvidenceIsReliable(
+        IReadOnlyList<ProviderVideo> videos,
+        Dictionary<DateOnly, List<int>> byDate)
+    {
+        var dated = 0;
+        var hits = 0;
+
+        for (var index = 0; index < videos.Count; index++)
+        {
+            if (videos[index].AirDate is not { } date)
+            {
+                continue;
+            }
+
+            dated++;
+
+            // The same tolerance the passes use: a time zone or a last minute change of the grid moves a date one
+            // day, and a program whose whole calendar is shifted by one day is still the same emission.
+            if (HasEpisodeOn(byDate, date))
+            {
+                hits++;
+            }
+        }
+
+        return dated > 0 && hits > 0 && hits >= dated * MinimumDateDensity;
+    }
+
+    /// <summary>
+    /// Tells whether the provider publishes an episode on a day, the day before or the day after.
+    /// </summary>
+    /// <param name="byDate">Episodes of the provider indexed by air date.</param>
+    /// <param name="date">Air date of the video.</param>
+    /// <returns><c>true</c> when there is an episode within <see cref="DateToleranceDays"/>.</returns>
+    private static bool HasEpisodeOn(Dictionary<DateOnly, List<int>> byDate, DateOnly date)
+    {
+        if (byDate.ContainsKey(date))
+        {
+            return true;
+        }
+
+        for (var offset = 1; offset <= DateToleranceDays; offset++)
+        {
+            if (byDate.ContainsKey(date.AddDays(-offset)) || byDate.ContainsKey(date.AddDays(offset)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -879,6 +1127,77 @@ public static class ProviderNumbering
         }
 
         return duplicates;
+    }
+
+    /// <summary>
+    /// Reads the seasons of 3Cat from the titles of its videos, in air order.
+    /// </summary>
+    /// <param name="videos">Videos of 3Cat.</param>
+    /// <returns>One block per season, with the numbering and the <c>capitol</c> counter it spans.</returns>
+    /// <remarks>
+    /// The block is the unit of the anchors: «T20=856» says where the season 20 of 3Cat starts, which is what the
+    /// preview shows so the anchors can be written without reading the catalog by hand. A program whose titles
+    /// carry no numbering («Doraemon» publishes renamed episodes) is a single block with
+    /// <see cref="ProviderBlock.Season"/> 0.
+    /// </remarks>
+    internal static IReadOnlyList<ProviderBlock> BuildBlocks(IReadOnlyList<ProviderVideo> videos)
+    {
+        var blocks = new List<ProviderBlock>();
+        var season = -1;
+        var count = 0;
+        int? firstChapter = null;
+        int? lastChapter = null;
+        int? firstCounter = null;
+        int? lastCounter = null;
+
+        void Close()
+        {
+            if (count > 0)
+            {
+                blocks.Add(new ProviderBlock(
+                    Math.Max(season, 0),
+                    count,
+                    firstChapter,
+                    lastChapter,
+                    firstCounter,
+                    lastCounter));
+            }
+        }
+
+        foreach (var video in videos)
+        {
+            var numbering = EpisodeNumbering.Parse(video.Title);
+            var current = numbering?.Season ?? 0;
+
+            if (current != season)
+            {
+                Close();
+                season = current;
+                count = 0;
+                firstChapter = null;
+                lastChapter = null;
+                firstCounter = null;
+                lastCounter = null;
+            }
+
+            count++;
+
+            if (numbering is { } value)
+            {
+                firstChapter ??= value.Episode;
+                lastChapter = value.Episode;
+            }
+
+            if (video.Chapter is { } counter)
+            {
+                firstCounter ??= counter;
+                lastCounter = counter;
+            }
+        }
+
+        Close();
+
+        return blocks;
     }
 
     /// <summary>

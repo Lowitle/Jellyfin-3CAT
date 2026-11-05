@@ -271,12 +271,13 @@
                         <table class="threeCatTable">
                             <thead>
                                 <tr>
-                                    <th style="width: 26%">Programa</th>
-                                    <th style="width: 13%">Referencia</th>
-                                    <th style="width: 15%">Fuente</th>
-                                    <th style="width: 12%">id TMDB</th>
-                                    <th style="width: 24%">También en</th>
-                                    <th style="width: 10%"></th>
+                                    <th style="width: 22%">Programa</th>
+                                    <th style="width: 11%">Referencia</th>
+                                    <th style="width: 13%">Fuente</th>
+                                    <th style="width: 10%">id TMDB</th>
+                                    <th style="width: 18%">Anclas</th>
+                                    <th style="width: 20%">También en</th>
+                                    <th style="width: 6%"></th>
                                 </tr>
                             </thead>
                             <tbody id="ThreeCatProgramsBody"></tbody>
@@ -422,6 +423,8 @@
                                placeholder="120086583, https://www.3cat.cat/3cat/… o El detectiu Conan" />
                         <input is="emby-input" type="text" id="ThreeCatMappingTmdb"
                                placeholder="Id o URL de TMDB: 30983" />
+                        <input is="emby-input" type="text" id="ThreeCatMappingAnchors"
+                               placeholder="Anclas: T1=1; T20=856 (opcional)" />
                         <button is="emby-button" type="button" id="ThreeCatMappingRun" class="raised">
                             <span>Ver el emparejamiento con TMDB</span>
                         </button>
@@ -430,7 +433,12 @@
                     <div class="fieldDescription">
                         El primer campo es el programa de 3Cat: su id, la URL de su página, su título o el id
                         de cualquiera de sus vídeos. El segundo es el id de la serie en TMDB (o la URL de su
-                        ficha) y manda sobre el del dataset y sobre el de la tabla de programas.
+                        ficha) y manda sobre el del dataset y sobre el de la tabla de programas. El tercero son
+                        las anclas: <code>T1=1</code> dice que la temporada 1 de 3Cat empieza en el episodio 1
+                        de TMDB, <code>T22xC6=906</code> que ese capítulo es ese episodio, y el resto de la
+                        temporada se numera siguiendo el orden de TMDB hacia arriba y hacia abajo. Son la única
+                        evidencia que funciona cuando el doblaje y el original no comparten ni títulos ni
+                        fechas.
                     </div>
 
                     <div class="fieldDescription" id="ThreeCatMappingStatus">
@@ -440,15 +448,17 @@
 
                     <div class="threeCatActions" id="ThreeCatMappingCandidates"></div>
                     <div class="fieldDescription" id="ThreeCatMappingSummary" style="display: none"></div>
+                    <div class="fieldDescription" id="ThreeCatMappingBlocks" style="display: none"></div>
 
                     <div class="threeCatTableWrap" id="ThreeCatMappingWrap" style="display: none">
                         <table class="threeCatTable">
                             <thead>
                                 <tr>
-                                    <th style="width: 30%">Vídeo de 3Cat</th>
-                                    <th style="width: 12%">Fecha</th>
+                                    <th style="width: 28%">Vídeo de 3Cat</th>
+                                    <th style="width: 11%">Fecha</th>
+                                    <th style="width: 5%">Cap.</th>
                                     <th style="width: 12%">Episodio</th>
-                                    <th style="width: 12%">Evidencia</th>
+                                    <th style="width: 10%">Evidencia</th>
                                     <th style="width: 34%">Episodio de TMDB</th>
                                 </tr>
                             </thead>
@@ -707,10 +717,13 @@
                 var method = threeCatField(row, 'method');
                 var providerTitle = threeCatField(row, 'providerTitle');
                 var providerAirDate = threeCatField(row, 'providerAirDate');
+                var chapter = threeCatField(row, 'chapter');
 
                 tr.appendChild(threeCatElement('td', '', title || videoId || ''));
                 tr.appendChild(threeCatElement('td', 'threeCatMono',
                     aired ? String(aired).slice(0, 10) : '—'));
+                tr.appendChild(threeCatElement('td', 'threeCatMono',
+                    chapter === null || chapter === undefined ? '—' : String(chapter)));
                 tr.appendChild(threeCatElement('td', 'threeCatMono',
                     'S' + String(season).padStart(2, '0')
                     + 'E' + String(episode).padStart(2, '0')));
@@ -729,15 +742,19 @@
                 var input = document.querySelector('#ThreeCatMappingProgram');
                 var programId = input.value.trim();
                 var tmdbId = document.querySelector('#ThreeCatMappingTmdb').value.trim();
+                var anchors = document.querySelector('#ThreeCatMappingAnchors').value.trim();
                 var status = document.querySelector('#ThreeCatMappingStatus');
                 var candidates = document.querySelector('#ThreeCatMappingCandidates');
                 var summary = document.querySelector('#ThreeCatMappingSummary');
+                var blocksHint = document.querySelector('#ThreeCatMappingBlocks');
                 var wrap = document.querySelector('#ThreeCatMappingWrap');
                 var body = document.querySelector('#ThreeCatMappingBody');
 
                 candidates.innerHTML = '';
                 summary.textContent = '';
                 summary.style.display = 'none';
+                blocksHint.textContent = '';
+                blocksHint.style.display = 'none';
                 wrap.style.display = 'none';
                 body.innerHTML = '';
 
@@ -751,6 +768,7 @@
                 ApiClient.getJSON(threeCatUrl('Mapping', {
                     programId: programId,
                     tmdbId: tmdbId,
+                    anchors: anchors,
                     source: 'tmdb'
                 })).then(function (report) {
                     var title = threeCatField(report, 'title');
@@ -762,6 +780,9 @@
 
                     summary.textContent = threeCatMappingSummary(report);
                     summary.style.display = summary.textContent ? '' : 'none';
+
+                    blocksHint.textContent = threeCatMappingBlocks(report);
+                    blocksHint.style.display = blocksHint.textContent ? '' : 'none';
 
                     var rows = threeCatField(report, 'rows') || [];
                     rows.forEach(function (row) {
@@ -803,16 +824,58 @@
                     return '';
                 }
 
+                var anchors = threeCatInt(threeCatField(report, 'anchors'), 0);
+                var placed = threeCatInt(threeCatField(report, 'anchorsPlaced'), 0);
+
                 return 'Vídeos: ' + videos
                     + ' · Emparejados: ' + threeCatInt(threeCatField(report, 'matched'), 0)
                     + ' (fecha ' + threeCatInt(threeCatField(report, 'byDate'), 0)
                     + ' · título ' + threeCatInt(threeCatField(report, 'byTitle'), 0)
-                    + ' · orden ' + threeCatInt(threeCatField(report, 'byOrder'), 0) + ')'
+                    + ' · orden ' + threeCatInt(threeCatField(report, 'byOrder'), 0)
+                    + ' · ancla ' + threeCatInt(threeCatField(report, 'byAnchor'), 0) + ')'
+                    + (anchors > 0 ? ' · Anclas colocadas: ' + placed + '/' + anchors : '')
                     + ' · Temporada 0: ' + threeCatInt(threeCatField(report, 'specials'), 0)
                     + ' · Duplicados: ' + threeCatInt(threeCatField(report, 'duplicates'), 0)
                     + ' · Cobertura: '
                     + Math.round(threeCatFloat(threeCatField(report, 'coverage'), 0) * 100) + ' %'
-                    + ' · ' + (threeCatField(report, 'usesThreeCat') ? 'Se numeraría con 3Cat' : 'Se numeraría con TMDB');
+                    + ' · ' + (threeCatField(report, 'usesThreeCat') ? 'Se numeraría con 3Cat' : 'Se numeraría con TMDB')
+                    + (threeCatField(report, 'datesReliable') === false
+                        ? ' · Fechas descartadas: no coinciden con las de TMDB'
+                        : '');
+            }
+
+            // The seasons of 3Cat with their numbering and their counter, so an anchor can be written without
+            // reading the catalog: it is the list of the «T1=1», «T20=856» the preview accepts.
+            function threeCatMappingBlocks(report) {
+                var blocks = threeCatField(report, 'blocks') || [];
+
+                if (blocks.length === 0) {
+                    return '';
+                }
+
+                var parts = blocks.map(function (block) {
+                    var season = threeCatInt(threeCatField(block, 'season'), 0);
+                    var label = threeCatField(block, 'numbered') === false || season <= 0
+                        ? 'sin numeración'
+                        : 'T' + season;
+                    var text = label + ': ' + threeCatInt(threeCatField(block, 'videos'), 0) + ' vídeos';
+
+                    var firstChapter = threeCatField(block, 'firstChapter');
+                    var lastChapter = threeCatField(block, 'lastChapter');
+                    if (firstChapter !== null && firstChapter !== undefined && lastChapter !== null && lastChapter !== undefined) {
+                        text += ' · C' + firstChapter + '–C' + lastChapter;
+                    }
+
+                    var firstCounter = threeCatField(block, 'firstCounter');
+                    var lastCounter = threeCatField(block, 'lastCounter');
+                    if (firstCounter !== null && firstCounter !== undefined && lastCounter !== null && lastCounter !== undefined) {
+                        text += ' · capitol ' + firstCounter + '–' + lastCounter;
+                    }
+
+                    return text;
+                });
+
+                return 'Temporadas de 3Cat: ' + parts.join(' | ');
             }
 
             function threeCatUrl(method, query) {
@@ -1183,6 +1246,28 @@
                 return cell;
             }
 
+            // The anchors of the mapping: they are what ties a dub to the original when neither the titles nor the
+            // dates do, so they live next to the id they belong to.
+            function threeCatProgramAnchorsCell(program) {
+                var cell = threeCatElement('td', 'threeCatCellId');
+                var input = threeCatElement('input', 'emby-input threeCatIdInput');
+                input.type = 'text';
+                input.id = 'ThreeCatProgramAnchors-' + program.Id;
+                input.placeholder = 'T1=1; T20=856';
+                input.title = 'T1=1: la temporada 1 de 3Cat empieza en el episodio 1 de TMDB.';
+                input.value = program.Anchors || '';
+                input.addEventListener('input', function () {
+                    program.Anchors = this.value.trim();
+                });
+                input.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                    }
+                });
+                cell.appendChild(input);
+                return cell;
+            }
+
             function threeCatRenderPrograms() {
                 var body = document.querySelector('#ThreeCatProgramsBody');
                 var programs = ThreeCatConfig.programs;
@@ -1201,6 +1286,7 @@
 
                     row.appendChild(threeCatProgramSourceCell(program));
                     row.appendChild(threeCatProgramIdCell(program));
+                    row.appendChild(threeCatProgramAnchorsCell(program));
                     row.appendChild(threeCatProgramLibraryCell(program));
 
                     var actions = threeCatElement('td');
@@ -1243,6 +1329,7 @@
                     Override: null,
                     TmdbId: '',
                     TvdbId: '',
+                    Anchors: '',
                     WrittenSource: null,
                     DestinationPath: '',
                     WrittenPath: '',
@@ -2073,6 +2160,7 @@
                             Override: threeCatSourceValue(threeCatField(program, 'override')),
                             TmdbId: threeCatField(program, 'tmdbId') || '',
                             TvdbId: threeCatField(program, 'tvdbId') || '',
+                            Anchors: threeCatField(program, 'anchors') || '',
                             // The source the last run wrote is a cache of the task: it is carried through so
                             // saving the page never makes the next run rewrite a series for nothing.
                             WrittenSource: threeCatSourceValue(threeCatField(program, 'writtenSource')),
@@ -2137,6 +2225,7 @@
                             Override: program.Override,
                             TmdbId: program.TmdbId || null,
                             TvdbId: program.TvdbId || null,
+                            Anchors: program.Anchors || null,
                             WrittenSource: program.WrittenSource,
                             DestinationPath: threeCatPath(program.DestinationPath),
                             WrittenPath: threeCatPath(program.WrittenPath),

@@ -20,9 +20,11 @@ public sealed class ConfigPageTests
     /// <c>undefined</c>, and the user ends up looking at a preview that only says «undefined:».
     /// </summary>
     private static readonly Regex CamelCaseRead = new(
-        @"\b(?:report|row|candidate|result|config)\.(?:programId|title|source|externalId|videos|matched"
-        + @"|byDate|byTitle|byOrder|specials|duplicates|coverage|usesThreeCat|message|rows|candidates"
-        + @"|videoId|aired|season|episode|method|providerTitle|providerAirDate|records|programs"
+        @"\b(?:report|row|candidate|result|config|block|program)\.(?:programId|title|source|externalId|videos|matched"
+        + @"|byDate|byTitle|byOrder|byAnchor|anchors|datesReliable|blocks|specials|duplicates|coverage|usesThreeCat"
+        + @"|message|rows|candidates"
+        + @"|videoId|aired|season|episode|chapter|method|providerTitle|providerAirDate|records|programs"
+        + @"|numbered|firstChapter|lastChapter|firstCounter|lastCounter"
         + @"|withTmdb|withTvdb|withImdb|libraries|items|count)\b",
         RegexOptions.CultureInvariant);
 
@@ -47,6 +49,19 @@ public sealed class ConfigPageTests
 
         Assert.Contains("programId: programId,", page, StringComparison.Ordinal);
         Assert.Contains("tmdbId: tmdbId,", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Page_SendsTheAnchorsOfThePreview()
+    {
+        // The anchors are the only evidence that ties a dub to the original, so the preview has to forward
+        // them or the table would never show what the task is going to write.
+        var page = ReadPage();
+
+        Assert.Contains("id=\"ThreeCatMappingAnchors\"", page, StringComparison.Ordinal);
+        Assert.Contains("anchors: anchors,", page, StringComparison.Ordinal);
+        Assert.Contains("threeCatFloat(threeCatField(report, 'coverage'), 0)", page, StringComparison.Ordinal);
+        Assert.Contains("threeCatMappingBlocks(report)", page, StringComparison.Ordinal);
     }
 
     [Fact]

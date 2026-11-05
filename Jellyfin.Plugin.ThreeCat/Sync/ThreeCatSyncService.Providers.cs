@@ -106,10 +106,15 @@ public sealed partial class ThreeCatSyncService
             .Select(video => new ProviderVideo(
                 FirstNonEmptyOrNull(video.Title, video.FriendlyName),
                 video.Broadcast ?? video.Published,
-                video.Id))
+                video.Id,
+                video.Chapter))
             .ToList();
 
-        var provider = ProviderNumbering.Assign(videos, episodes, seriesTitle);
+        var provider = ProviderNumbering.Assign(
+            videos,
+            episodes,
+            seriesTitle,
+            ProviderAnchors.Parse(reference.Anchors));
         if (provider.UseThreeCat)
         {
             return Fallback($"la numeración de TMDB no cubre la serie ({provider.Reason})");

@@ -382,6 +382,10 @@ public sealed class ThreeCatPlayController : ControllerBase
     /// </param>
     /// <param name="tmdbId">Id of the series in TMDB (or the URL of its page), when the user knows it.</param>
     /// <param name="source">Source to try (<c>tmdb</c>); the configured one when empty.</param>
+    /// <param name="anchors">
+    /// Anchors typed by the user («T1=1; T20=856»). They win over every other evidence: they are the only thing
+    /// that ties a dub to the original when the titles are translated and the dates are the ones of the dub.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
     /// The mapping table, with the message that explains why it is empty when it is. The endpoint answers
@@ -392,6 +396,7 @@ public sealed class ThreeCatPlayController : ControllerBase
         [FromQuery] string? programId,
         [FromQuery] string? tmdbId,
         [FromQuery] string? source,
+        [FromQuery] string? anchors,
         CancellationToken cancellationToken)
     {
         var typed = programId?.Trim() ?? string.Empty;
@@ -431,8 +436,13 @@ public sealed class ThreeCatPlayController : ControllerBase
             .Select(video => new ProviderVideo(
                 FirstNonEmpty(video.Title, video.FriendlyName),
                 video.Broadcast ?? video.Published,
-                video.Id))
+                video.Id,
+                video.Chapter))
             .ToList();
+
+        // The anchors of the preview: the ones typed in the request, or the ones saved with the program.
+        var anchorText = string.IsNullOrWhiteSpace(anchors) ? program?.Anchors : anchors;
+        var anchorList = ProviderAnchors.Parse(anchorText);
 
         ProviderNumberingResult? result = null;
         string? externalId = null;
@@ -485,10 +495,23 @@ public sealed class ThreeCatPlayController : ControllerBase
                     }
                     else
                     {
-                        result = ProviderNumbering.Assign(videos, episodes, title);
+                        result = ProviderNumbering.Assign(videos, episodes, title, anchorList);
                         message = result.UseThreeCat
                             ? $"La cobertura es del {result.Coverage:P0}: la serie se numeraría con 3Cat."
                             : $"La serie se numeraría con TMDB: {result.Matched} de {result.Assignable} vídeos emparejados.";
+
+                        if (result.Anchors > 0 && result.AnchorsPlaced < result.Anchors)
+                        {
+                            message += $" Solo se han podido colocar {result.AnchorsPlaced} de {result.Anchors}"
+                                + " anclas: revisa las que nombran un capítulo que no existe o un episodio ya"
+                                + " ocupado por otra ancla.";
+                        }
+
+                        if (!result.DatesReliable && result.Anchors == 0)
+                        {
+                            message += " Las fechas de 3Cat no coinciden con las de TMDB (son las del doblaje),"
+                                + " así que no se han usado: sin anclas no hay forma de emparejar los vídeos.";
+                        }
                     }
                 }
             }
@@ -510,7 +533,8 @@ public sealed class ThreeCatPlayController : ControllerBase
                     slot.Episode,
                     slot.IsDuplicate ? "duplicado" : MethodName(result.Methods[index]),
                     episode?.Title,
-                    episode?.AirDate));
+                    episode?.AirDate,
+                    ordered[index].Chapter));
             }
         }
 
@@ -524,12 +548,17 @@ public sealed class ThreeCatPlayController : ControllerBase
             result?.ByDate ?? 0,
             result?.ByTitle ?? 0,
             result?.ByOrder ?? 0,
+            result?.ByAnchor ?? 0,
+            result?.Anchors ?? anchorList.Count,
+            result?.AnchorsPlaced ?? 0,
+            result?.DatesReliable ?? false,
             result?.Specials ?? 0,
             result?.Duplicates ?? 0,
             result?.Coverage ?? 0,
             result?.UseThreeCat ?? true,
             message,
             rows,
+            result?.Blocks ?? [],
             lookup.Candidates.Select(match => new ThreeCatProgramCandidate(match.Id, match.Title)).ToList()));
     }
 
@@ -735,6 +764,7 @@ public sealed class ThreeCatPlayController : ControllerBase
             ProviderMatch.Date => "fecha",
             ProviderMatch.Title => "título",
             ProviderMatch.Order => "orden",
+            ProviderMatch.Anchor => "ancla",
             _ => "sin evidencia"
         };
 
@@ -830,6 +860,10 @@ public sealed record ThreeCatDatasetStatus(
 /// <param name="Method">Evidence that paired it («fecha», «título», «orden», «sin evidencia»).</param>
 /// <param name="ProviderTitle">Title the provider publishes for that episode.</param>
 /// <param name="ProviderAirDate">Air date the provider publishes for that episode.</param>
+/// <param name="Chapter">
+/// Counter <c>capitol</c> 3Cat publishes for the video, which is what tells where its catalog is not continuous
+/// and what makes an anchor easy to write; <c>null</c> when 3Cat publishes none.
+/// </param>
 public sealed record ThreeCatMappingRow(
     string VideoId,
     string Title,
@@ -838,7 +872,8 @@ public sealed record ThreeCatMappingRow(
     int Episode,
     string Method,
     string? ProviderTitle,
-    DateOnly? ProviderAirDate);
+    DateOnly? ProviderAirDate,
+    int? Chapter);
 
 /// <summary>
 /// Preview of the numbering a program would get with a provider, which the page shows before anything is
@@ -853,6 +888,13 @@ public sealed record ThreeCatMappingRow(
 /// <param name="ByDate">Videos paired by air date.</param>
 /// <param name="ByTitle">Videos paired by title.</param>
 /// <param name="ByOrder">Videos paired by order inside a gap.</param>
+/// <param name="ByAnchor">Videos paired by an anchor typed by the user.</param>
+/// <param name="Anchors">Anchors the user typed, whether they could be placed or not.</param>
+/// <param name="AnchorsPlaced">Anchors that could be placed.</param>
+/// <param name="DatesReliable">
+/// Whether the air dates of 3Cat were used as evidence; <c>false</c> when they belong to the emission of the dub
+/// and not to the one of the provider.
+/// </param>
 /// <param name="Specials">Videos that would go to the season of specials.</param>
 /// <param name="Duplicates">Videos 3Cat publishes twice.</param>
 /// <param name="Coverage">Share of videos paired with an episode of the provider (0 to 1).</param>
@@ -862,6 +904,7 @@ public sealed record ThreeCatMappingRow(
 /// </param>
 /// <param name="Message">Message shown to the user.</param>
 /// <param name="Rows">The table, one row per video.</param>
+/// <param name="Blocks">Seasons of 3Cat, offered so the anchors can be written without reading the catalog.</param>
 /// <param name="Candidates">
 /// Programs the reference could mean when it is ambiguous, so the page can offer them instead of failing.
 /// </param>
@@ -875,12 +918,17 @@ public sealed record ThreeCatMappingReport(
     int ByDate,
     int ByTitle,
     int ByOrder,
+    int ByAnchor,
+    int Anchors,
+    int AnchorsPlaced,
+    bool DatesReliable,
     int Specials,
     int Duplicates,
     double Coverage,
     bool UsesThreeCat,
     string Message,
     IReadOnlyList<ThreeCatMappingRow> Rows,
+    IReadOnlyList<ProviderBlock> Blocks,
     IReadOnlyList<ThreeCatProgramCandidate> Candidates);
 
 /// <summary>
