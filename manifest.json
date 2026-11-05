@@ -9,7 +9,7 @@
   "versions": [
     {
       "version": "1.8.1.1",
-      "changelog": "3Cat 1.8.1.1",
+      "changelog": "La pasada del «capitol» deja de mirar el orden en que llegan los vídeos, que es justo lo que la dejaba fuera. La 1.8.1.0 pedía que el contador creciera con el orden de emisión, y 3Cat fecha su catálogo con la emisión del doblaje y lo fecha mal: en «El detectiu Conan» el capítulo 40 va fechado después del 41 y el 53 después del 79 —cinco saltos atrás en 385 vídeos—, así que la guarda rechazaba el contador y la serie se quedaba en el 0 % de cobertura. Ahora se comprueba que el contador numere cada vídeo una sola vez (un índice de temporada repite los números que ya ha dado) y que ninguna emisión vuelva al principio del programa, que es lo que es una reemisión y no una fecha unos días fuera de sitio. Medido sobre el catálogo real de «El detectiu Conan»: 329 de 385 vídeos emparejados por el contador (85,5 %) con cero desviaciones, en cualquier orden en que lleguen los vídeos, y el 100 % si el proveedor lista los 1.206 capítulos. La vista previa, además, dice por qué no se ha usado el contador cuando no se usa: si el proveedor lista menos de la mitad de los capítulos que 3Cat anuncia, o si los números se repiten.",
       "targetAbi": "10.11.0.0",
       "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.8.1.1/threecat_1.8.1.1.zip",
       "checksum": "6F70ED9A1BA1874B4032B329FC1FCB61",
