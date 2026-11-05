@@ -95,11 +95,14 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
   T20 empieza en 857). Como la numeración de la serie es la misma en cualquier catálogo, el vídeo es el
   episodio que ocupa esa posición en TMDB y el emparejamiento es una consulta, no una conjetura: es la única
   pasada que **respeta los huecos** del catálogo (las pasadas que caminan las dos listas numeran el 857 como
-  136) y la única que sobrevive a un doblaje con títulos y fechas propias. La pasada solo entra si el
-  contador crece con el orden de emisión, lo publican al menos la mitad de los vídeos y anuncia más capítulos
-  que cualquier temporada suelta (si no, es un índice de temporada y se ignora), y solo rellena lo que no ha
-  reclamado una fecha o un título. Medido sobre el catálogo real de «El detectiu Conan»: 329 de 385 vídeos
-  emparejados (85,5 %) con **cero** desviaciones, y el 100 % si el proveedor lista los 1.206 capítulos.
+  136) y la única que sobrevive a un doblaje con títulos y fechas propias. La pasada solo entra si lo publican
+  al menos la mitad de los vídeos, si numera cada vídeo una sola vez (un índice de temporada repite los números
+  que ya ha dado) y si anuncia más capítulos que cualquier temporada suelta; y solo rellena lo que no ha
+  reclamado una fecha o un título. El orden en que llegan los vídeos no se juzga, y eso también lo enseñó «El
+  detectiu Conan»: 3Cat fecha su catálogo con la emisión del doblaje y lo fecha mal —el capítulo 53 del programa
+  va fechado después del 79, y el 40 después del 41—, así que lo único que se lee como reemisión es un vídeo que
+  vuelve al principio del programa. Medido sobre el catálogo real: 329 de 385 vídeos emparejados (85,5 %) con
+  **cero** desviaciones, y el 100 % si el proveedor lista los 1.206 capítulos.
 - **Anclas**: cuando el doblaje y el original no comparten nada —«Detectiu Conan» se dobló entre 2001 y
   2025 y TMDB publica los episodios en japonés desde 1996, así que ni los títulos ni las fechas sirven— el
   usuario puede escribir anclas con la misma sintaxis de los títulos de 3Cat: `T1=1` (la temporada 1 de 3Cat
@@ -288,6 +291,15 @@ dotnet run --project tools/CatalogDump     # volcado del catálogo a CSV: la ent
   del ancla porque se detenía en cada cambio de temporada). Las anclas que queden escritas se siguen
   respetando: fijan el desfase entre los dos contadores y el resto del programa lo hereda. La vista previa
   añade el contador `capitol` al resumen, la columna **Evidencia** marca «capitol» y avisa del desfase.
+- Desde la 1.8.1.1 la pasada del `capitol` deja de mirar el orden en que llegan los vídeos. La 1.8.1.0 pedía
+  que el contador creciera con el orden de emisión, y resulta que 3Cat fecha su catálogo con la emisión del
+  doblaje y lo fecha mal: en «Detectiu Conan» el capítulo 40 va fechado después del 41 y el 53 después del 79,
+  cinco saltos atrás en 385 vídeos, así que la guarda rechazaba el contador y la serie volvía al 0 % de
+  cobertura. Ahora lo que se comprueba es que el contador numere cada vídeo una sola vez (un índice de
+  temporada repite los números que ya ha dado) y que ninguna emisión vuelva al principio del programa, que es
+  lo que es una reemisión y no una fecha unos días fuera de sitio. La vista previa, además, dice por qué no se
+  ha usado el contador cuando no se ha usado: si el proveedor lista menos de la mitad de los capítulos que 3Cat
+  anuncia, o si los números se repiten.
 
 - La clave de TMDB es del usuario y se guarda en la configuración del plugin (nunca en el registro): la
   página acepta tanto una clave v3 como un token de lectura v4 y los distingue por su forma. Sin clave,

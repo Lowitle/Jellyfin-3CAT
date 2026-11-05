@@ -524,6 +524,20 @@ public sealed class ThreeCatPlayController : ControllerBase
                                     + " (lo dicen tus anclas).";
                             }
                         }
+
+                        // Why the counter stayed out of the way, when it did: it is the difference between a
+                        // preview that fails and a preview that says what to look at.
+                        if (result.ByCounter == 0 && result.Anchors == 0)
+                        {
+                            var highestCounter = result.Blocks
+                                .Select(block => Math.Max(block.FirstCounter ?? 0, block.LastCounter ?? 0))
+                                .DefaultIfEmpty(0)
+                                .Max();
+
+                            message += CounterHint(
+                                highestCounter,
+                                episodes.Count(episode => episode.Season > 0 && episode.Episode > 0));
+                        }
                     }
                 }
             }
@@ -782,6 +796,35 @@ public sealed class ThreeCatPlayController : ControllerBase
             ProviderMatch.Counter => "capitol",
             _ => "sin evidencia"
         };
+
+    /// <summary>
+    /// Explains why the counter of 3Cat did not pair a single video, when it did not.
+    /// </summary>
+    /// <param name="highestCounter">Highest <c>capitol</c> the catalog publishes, or 0 when it publishes none.</param>
+    /// <param name="listedEpisodes">Episodes the provider lists, once the specials are left out.</param>
+    /// <returns>The sentence to append to the message of the preview, or an empty string when there is no counter.</returns>
+    /// <remarks>
+    /// The two reasons the pass stays out of the way are worth telling apart: a provider that lists a fraction of
+    /// the program cannot be read by position —«Detectiu Conan» announces 1.206 chapters and TMDB lists 1.150, so
+    /// the reach is half of the counter—, and a counter whose numbers are not the ones of the program (it
+    /// restarts, or it repeats them) is the counter of the season.
+    /// </remarks>
+    internal static string CounterHint(int highestCounter, int listedEpisodes)
+    {
+        if (highestCounter <= 0)
+        {
+            return string.Empty;
+        }
+
+        var needed = (int)Math.Ceiling(highestCounter * ProviderNumbering.MinimumCounterReach);
+
+        return listedEpisodes < needed
+            ? $" El contador «capitol» de 3Cat anuncia {highestCounter} capítulos y el proveedor lista"
+                + $" {listedEpisodes}: no se ha usado, porque hacen falta al menos {needed} para fiarse de la"
+                + " posición que numera."
+            : " El contador «capitol» de 3Cat no se ha usado: sus números no son los de un contador del programa"
+                + " entero (se repiten o reinician con cada temporada).";
+    }
 
     /// <summary>
     /// First value that is not empty.

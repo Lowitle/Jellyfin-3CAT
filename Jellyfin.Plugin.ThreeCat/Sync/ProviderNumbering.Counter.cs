@@ -48,6 +48,33 @@ public static partial class ProviderNumbering
     internal const double MinimumCounterReach = 0.5;
 
     /// <summary>
+    /// Share of the counter that has to be a number of its own for the counter to be evidence.
+    /// </summary>
+    /// <remarks>
+    /// A counter of the season restarts in every batch and hands out again the numbers it has already handed
+    /// out, so the numbers of a program are mostly distinct and the ones of a season are not.
+    /// </remarks>
+    internal const double MinimumCounterDistinct = 0.9;
+
+    /// <summary>
+    /// Chapters a video may fall behind the highest counter published before it and still be a video.
+    /// </summary>
+    /// <remarks>
+    /// A re-emission goes back to the beginning of the program; a catalog that dates its chapters wrong —and
+    /// «Detectiu Conan» does, the 53 of the program dated after the 79— goes back a handful of chapters.
+    /// </remarks>
+    internal const int CounterReEmissionSlack = 50;
+
+    /// <summary>
+    /// Divisor of the highest counter that widens the slack of a re-emission: a tenth of the program.
+    /// </summary>
+    /// <remarks>
+    /// The slack is fixed for a short program and grows with the long ones, where a hole of a few hundred
+    /// chapters is a hole of the catalog and not a chapter emitted again.
+    /// </remarks>
+    internal const int CounterReEmissionShare = 10;
+
+    /// <summary>
     /// Pairs the videos of 3Cat with the episodes of the provider by the <c>capitol</c> counter.
     /// </summary>
     /// <param name="videos">Videos of 3Cat.</param>
@@ -108,31 +135,34 @@ public static partial class ProviderNumbering
     /// <summary>
     /// Tells whether the <c>capitol</c> of the videos is the counter of the whole program.
     /// </summary>
-    /// <param name="videos">Videos of 3Cat, in air order.</param>
+    /// <param name="videos">Videos of 3Cat.</param>
     /// <param name="duplicates">Videos 3Cat publishes twice.</param>
     /// <returns><c>true</c> when the counter may be used as the absolute position of the video.</returns>
     /// <remarks>
     /// <para>
     /// Three things have to hold, and each one rejects a different catalog: enough videos have to publish the
-    /// counter (a program that publishes it in a video out of ten has no counter to read); the counter has to
-    /// grow with the air order, because a counter that restarts in every batch is a counter of the season
-    /// —<c>capitol_temporada</c>, which does restart, arrives with the same shape—; and it has to announce more
-    /// chapters than any single season has, which is what tells a counter of the program from a season index
-    /// that happens to keep growing.
+    /// counter (a program that publishes it in a video out of ten has no counter to read); it has to announce
+    /// more chapters than any single season has, which is what tells a counter of the program from a season
+    /// index that happens to keep growing; and it has to number the videos one by one, because a counter that
+    /// restarts in every batch —<c>capitol_temporada</c>, which does restart, arrives with the same shape—
+    /// hands out again the numbers it has already handed out.
     /// </para>
     /// <para>
-    /// The re-emission of a chapter twenty years later is what the growth rejects, and it is on purpose: those
-    /// videos are not the tail of the program, and the other passes place them with the date they carry.
+    /// The order the videos arrive in is not judged here, and «Detectiu Conan» is why: 3Cat dates its catalog
+    /// with the emission of the dub, and it dates it wrong —the chapter 53 of the program is dated after the
+    /// 79, and the 40 after the 41—, so a pass that reads the counter as an order throws away the only
+    /// evidence it has. What is read as a re-emission is what a re-emission is: a video that goes back to the
+    /// beginning of the program, hundreds of chapters, and not a chapter the catalog dated a few days out of
+    /// place.
     /// </para>
     /// </remarks>
     internal static bool CounterIsAbsolute(IReadOnlyList<ProviderVideo> videos, bool[] duplicates)
     {
         var assignable = 0;
         var known = 0;
-        var inversions = 0;
-        var previous = 0;
         var highest = 0;
         var highestChapter = 0;
+        var distinct = new HashSet<int>();
 
         for (var index = 0; index < videos.Count; index++)
         {
@@ -154,20 +184,46 @@ public static partial class ProviderNumbering
             }
 
             known++;
-
-            if (previous > 0 && counter < previous)
-            {
-                inversions++;
-            }
-
-            previous = counter;
             highest = Math.Max(highest, counter);
+            distinct.Add(counter);
         }
 
         return known > 0
             && known >= assignable * MinimumCounterDensity
-            && inversions == 0
-            && highest > highestChapter;
+            && distinct.Count >= known * MinimumCounterDistinct
+            && highest > highestChapter
+            && !ReEmitsChapter(videos, duplicates, highest);
+    }
+
+    /// <summary>
+    /// Tells whether the catalog publishes again a chapter it already publishes, which is not a chapter of the
+    /// program and has no place to occupy.
+    /// </summary>
+    /// <param name="videos">Videos of 3Cat.</param>
+    /// <param name="duplicates">Videos 3Cat publishes twice.</param>
+    /// <param name="highest">Highest <c>capitol</c> of the catalog.</param>
+    /// <returns><c>true</c> when a video falls behind the ones already published by more than the slack.</returns>
+    private static bool ReEmitsChapter(IReadOnlyList<ProviderVideo> videos, bool[] duplicates, int highest)
+    {
+        var slack = Math.Max(CounterReEmissionSlack, highest / CounterReEmissionShare);
+        var published = 0;
+
+        for (var index = 0; index < videos.Count; index++)
+        {
+            if (duplicates[index] || videos[index].Chapter is not { } counter || counter <= 0)
+            {
+                continue;
+            }
+
+            if (counter < published - slack)
+            {
+                return true;
+            }
+
+            published = Math.Max(published, counter);
+        }
+
+        return false;
     }
 
     /// <summary>

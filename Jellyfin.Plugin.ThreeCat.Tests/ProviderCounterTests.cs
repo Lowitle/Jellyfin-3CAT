@@ -59,6 +59,30 @@ public sealed class ProviderCounterTests
     }
 
     [Fact]
+    public void Assign_ReadsTheCounterWhenTheCatalogDatesItsChaptersOutOfOrder()
+    {
+        // «Detectiu Conan» as 3Cat publishes it: the chapter 40 of the program is dated after the 41 and the 53
+        // after the 79, because the catalog carries the dates of the dub and carries them wrong. The counter is
+        // still the numbering of the program, and reading it as an order threw the whole series to the season 0.
+        var result = ProviderNumbering.Assign(
+            [
+                Video("T1xC41 - Cuarenta y uno", "2001-07-07", "1", 41),
+                Video("T1xC40 - Cuarenta", "2001-07-08", "2", 40),
+                Video("T2xC36 - Setenta y nueve", "2001-08-13", "3", 79),
+                Video("T2xC10 - Cincuenta y tres", "2001-08-14", "4", 53)
+            ],
+            Episodes(100));
+
+        Assert.Equal(41, result.Slots[0].Episode);
+        Assert.Equal(40, result.Slots[1].Episode);
+        Assert.Equal(79, result.Slots[2].Episode);
+        Assert.Equal(53, result.Slots[3].Episode);
+        Assert.Equal(ProviderMatch.Counter, result.Methods[3]);
+        Assert.Equal(4, result.ByCounter);
+        Assert.False(result.UseThreeCat);
+    }
+
+    [Fact]
     public void Assign_CalibratesTheOffsetWithASingleAnchor()
     {
         // «T1xC1=2» says the counter of 3Cat runs one episode behind the one of TMDB, and every video follows.
