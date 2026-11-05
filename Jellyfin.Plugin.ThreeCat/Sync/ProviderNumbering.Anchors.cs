@@ -30,6 +30,10 @@ public static partial class ProviderNumbering
     /// <param name="anchors">Anchors typed by the user.</param>
     /// <param name="take">Assigns an episode to a video.</param>
     /// <param name="placed">Anchors that could be placed, updated in place.</param>
+    /// <param name="offset">
+    /// Difference between the <c>capitol</c> of 3Cat and the absolute numbering of the provider, deduced from the
+    /// anchors; <c>null</c> when none of the placed anchors names a video with a counter to compare.
+    /// </param>
     /// <returns>The number of videos paired by this pass.</returns>
     private static int AlignByAnchors(
         IReadOnlyList<ProviderVideo> videos,
@@ -39,15 +43,18 @@ public static partial class ProviderNumbering
         bool[] duplicates,
         IReadOnlyList<ProviderAnchor> anchors,
         Action<int, int, ProviderMatch> take,
-        out int placed)
+        out int placed,
+        out int? offset)
     {
         var matched = 0;
         placed = 0;
+        offset = null;
 
         // The anchors are applied from the oldest episode of the provider, so the fill of one anchor does not
         // take the episode another anchor is going to claim.
         var ordered = anchors.OrderBy(item => item.TargetSeason).ThenBy(item => item.TargetEpisode).ToList();
         var pinned = new List<(int Video, int Episode)>();
+        var offsets = new List<int>();
 
         // Pass 1: every anchor takes its own pair, before any fill. «T1=1; T2=43» has to place both pins even
         // though the run of T1 reaches the episode 43: the pin of T2 wins and the fill of T1 stops in front of it.
@@ -65,12 +72,35 @@ public static partial class ProviderNumbering
             matched++;
             placed++;
             pinned.Add((video, episode));
+
+            // The anchor says where the counter of 3Cat sits in the provider: «T22xC6=906» reads as «the chapter
+            // 907 of 3Cat is the episode 906», so the whole program is off by one and every video follows from
+            // there. Two anchors that disagree are a typo, and the one most of them repeat wins.
+            if (videos[video].Chapter is { } counter && counter > 0)
+            {
+                offsets.Add(episode - (counter - 1));
+            }
         }
 
-        // Pass 2: the run of videos around every pin.
-        foreach (var (video, episode) in pinned)
+        if (offsets.Count > 0)
         {
-            matched += FillAround(videos, pool, used, assigned, duplicates, video, episode, take);
+            offset = offsets
+                .GroupBy(value => value)
+                .OrderByDescending(group => group.Count())
+                .ThenBy(group => Math.Abs(group.Key))
+                .Select(group => (int?)group.Key)
+                .First();
+        }
+
+        // Pass 2: the run of videos around every pin, which is the only way to number a program that publishes no
+        // counter. When there is one, the run is not walked: the counter numbers the whole program at once with
+        // the offset the anchors deduced, holes and chapters published out of order included.
+        if (!CounterIsUsable(videos, duplicates, pool))
+        {
+            foreach (var (video, episode) in pinned)
+            {
+                matched += FillAround(videos, pool, used, assigned, duplicates, video, episode, take);
+            }
         }
 
         return matched;

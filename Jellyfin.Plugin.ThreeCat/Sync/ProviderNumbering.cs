@@ -11,10 +11,9 @@ namespace Jellyfin.Plugin.ThreeCat.Sync;
 /// <param name="Aired">Air date published by 3Cat, or <c>null</c> when it publishes none.</param>
 /// <param name="Id">3Cat video id. It is only used to keep the rows of the report identifiable.</param>
 /// <param name="Chapter">
-/// The <c>capitol</c> 3Cat publishes: a counter that runs over the whole program and keeps the holes of the
-/// catalog («Detectiu Conan» jumps from 135 to 857 where 3Cat hosts no chapters). It is what tells where the
-/// catalog of 3Cat is not continuous; the numbering of the file is read from the title, see
-/// <see cref="EpisodeNumbering"/>.
+/// The <c>capitol</c> 3Cat publishes: a counter of the whole program that keeps the holes of the catalog
+/// 3Cat jumps from 135 to 857 where its catalog hosts no chapters. It is the absolute numbering of the
+/// series, so a video is the episode its counter announces; see <see cref="ProviderNumbering"/>.
 /// </param>
 public sealed record ProviderVideo(string? Title, DateTimeOffset? Aired, string? Id, int? Chapter = null)
 {
@@ -99,7 +98,13 @@ public enum ProviderMatch
     /// numbers by walking the provider list, which is the only evidence that survives a dub aired years after
     /// the original.
     /// </summary>
-    Anchor = 4
+    Anchor = 4,
+
+    /// <summary>
+    /// The <c>capitol</c> of the video is the position of an episode of the provider in the absolute numbering
+    /// of the series, so the video is the episode the counter announces and the catalog of 3Cat keeps its holes.
+    /// </summary>
+    Counter = 5
 }
 
 /// <summary>
@@ -122,6 +127,8 @@ public sealed class ProviderNumberingResult
     /// <param name="byTitle">Videos paired by title.</param>
     /// <param name="byOrder">Videos paired by order inside a gap.</param>
     /// <param name="byAnchor">Videos paired by an anchor typed by the user.</param>
+    /// <param name="byCounter">Videos paired by the <c>capitol</c> counter of 3Cat.</param>
+    /// <param name="counterOffset">Difference between the counter and the absolute numbering of the provider.</param>
     /// <param name="anchors">Anchors the user typed, whether they could be placed or not.</param>
     /// <param name="anchorsPlaced">Anchors that could be placed, the rest named a video or an episode that is not there.</param>
     /// <param name="datesReliable">
@@ -139,6 +146,8 @@ public sealed class ProviderNumberingResult
         int byTitle,
         int byOrder,
         int byAnchor,
+        int byCounter,
+        int counterOffset,
         int anchors,
         int anchorsPlaced,
         bool datesReliable,
@@ -154,6 +163,8 @@ public sealed class ProviderNumberingResult
         ByTitle = byTitle;
         ByOrder = byOrder;
         ByAnchor = byAnchor;
+        ByCounter = byCounter;
+        CounterOffset = counterOffset;
         Anchors = anchors;
         AnchorsPlaced = anchorsPlaced;
         DatesReliable = datesReliable;
@@ -209,6 +220,23 @@ public sealed class ProviderNumberingResult
     /// numbers by walking the provider list.
     /// </summary>
     public int ByAnchor { get; }
+
+    /// <summary>
+    /// Gets the number of videos paired by the <c>capitol</c> counter of 3Cat, which is the absolute numbering of
+    /// the series and keeps the holes of its catalog.
+    /// </summary>
+    public int ByCounter { get; }
+
+    /// <summary>
+    /// Gets the difference the anchors deduced between the counter of 3Cat and the absolute numbering of the
+    /// provider; 0 when both start at the same episode or when there was no anchor to deduce it from.
+    /// </summary>
+    /// <remarks>
+    /// It is 0 for «Detectiu Conan»: the chapter 1 of 3Cat is the episode 1 of TMDB. When a program needs another
+    /// value, one anchor is enough —«T22xC6=906» says that the chapter 907 of 3Cat is the episode 906— and the
+    /// rest of the program follows.
+    /// </remarks>
+    public int CounterOffset { get; }
 
     /// <summary>
     /// Gets the number of anchors the user typed, whether they could be placed or not.
@@ -274,7 +302,7 @@ public sealed class ProviderNumberingResult
     /// <summary>
     /// Gets the number of videos paired with an episode of the provider.
     /// </summary>
-    public int Matched => ByDate + ByTitle + ByOrder + ByAnchor;
+    public int Matched => ByDate + ByTitle + ByOrder + ByAnchor + ByCounter;
 
     /// <summary>
     /// Gets the share of videos paired with an episode of the provider (0 to 1).
@@ -294,11 +322,13 @@ public sealed class ProviderNumberingResult
 /// <c>Season NN</c> folders have to carry it, or the online metadata lands on the wrong episode.
 /// </para>
 /// <para>
-/// The evidence is used in this order, and every video keeps the one that decided it: air date (the same
-/// day, then one day apart) → normalized title (equality, then containment) → order inside the gap between
-/// two already matched pairs. A provider episode is never assigned twice, the duplicated videos of 3Cat are
-/// still dropped, and a video with no evidence goes to the season of specials with its air date in front of
-/// the title, as the catalog mode already does.
+/// The evidence is used in this order, and every video keeps the one that decided it: an anchor typed by the
+/// user, then the air date (the same day, then one day apart) when it is dense enough to be the same emission,
+/// then the normalized title (equality, then containment), then the <c>capitol</c> of 3Cat (the absolute
+/// numbering of the program, which keeps the holes of its catalog and survives a dub with its own titles and
+/// its own dates), then the order inside the gap between two already matched pairs. A provider episode is never
+/// assigned twice, the duplicated videos of 3Cat are still dropped, and a video with no evidence goes to the
+/// season of specials with its air date in front of the title, as the catalog mode already does.
 /// </para>
 /// <para>
 /// When the coverage stays below <see cref="MinimumCoverage"/> the result says so
@@ -423,6 +453,8 @@ public static partial class ProviderNumbering
                 0,
                 0,
                 0,
+                0,
+                0,
                 anchorCount,
                 0,
                 datesReliable: false,
@@ -473,6 +505,7 @@ public static partial class ProviderNumbering
         // gives: no other evidence may take the episode an anchor claims.
         var byAnchorCount = 0;
         var anchorsPlaced = 0;
+        int? anchorOffset = null;
 
         if (anchorList.Count > 0)
         {
@@ -484,8 +517,15 @@ public static partial class ProviderNumbering
                 duplicates,
                 anchorList,
                 Take,
-                out anchorsPlaced);
+                out anchorsPlaced,
+                out anchorOffset);
         }
+
+        // The counter of 3Cat is the absolute numbering of the program, so it is read as a position: the video
+        // is the episode that occupies the place its «capitol» announces. It is the only evidence that keeps the
+        // holes of the catalog —«Detectiu Conan» jumps from 135 to 857 and a pass that counts videos numbers the
+        // 857 as 136— and the only one that survives a dub with its own titles and its own dates.
+        var counterUsable = CounterIsUsable(videos, duplicates, pool);
 
         // The air dates are only evidence when they are dense: a dub aired years after the original carries the
         // dates of its own emission, and a weekly original against a daily dub falls on the same day once every
@@ -498,9 +538,18 @@ public static partial class ProviderNumbering
                 + MatchNextToTheDate(videos, pool, used, byDate, assigned, seriesTitle, Take)
             : 0;
 
-        // Passes 3 and 4, by title.
+        // Pass 3, by title. It goes before the counter because a title that matches is evidence of that very video,
+        // while the counter is a rule of the whole program.
         var byTitleCount = MatchByTitle(videos, pool, used, byTitle, assigned, seriesTitle, Take)
             + MatchByContainment(videos, pool, used, assigned, seriesTitle, Take);
+
+        // Pass 4, by counter. It goes before the fill of the gaps: the counter is exact when the two counters
+        // start at the same episode, while a gap that happens to have the same number of videos and episodes is
+        // only an inference —and with the holes of «Detectiu Conan» it is an inference that numbers 857 as 136—.
+        var counterOffset = counterUsable ? anchorOffset ?? 0 : 0;
+        var byCounterCount = counterUsable
+            ? AlignByCounter(videos, pool, used, assigned, duplicates, counterOffset, Take)
+            : 0;
 
         // Pass 5, by order inside the gaps left between the matched pairs.
         var byOrderCount = MatchByOrder(videos, pool, used, assigned, duplicates, Take);
@@ -514,6 +563,8 @@ public static partial class ProviderNumbering
             byTitleCount,
             byOrderCount,
             byAnchorCount,
+            byCounterCount,
+            counterOffset,
             anchorCount,
             anchorsPlaced,
             datesReliable,
@@ -946,6 +997,8 @@ public static partial class ProviderNumbering
     /// <param name="byTitle">Videos paired by title.</param>
     /// <param name="byOrder">Videos paired by order.</param>
     /// <param name="byAnchor">Videos paired by an anchor.</param>
+    /// <param name="byCounter">Videos paired by the <c>capitol</c> counter of 3Cat.</param>
+    /// <param name="counterOffset">Difference between the counter and the absolute numbering of the provider.</param>
     /// <param name="anchors">Anchors the user typed.</param>
     /// <param name="anchorsPlaced">Anchors that could be placed.</param>
     /// <param name="datesReliable">Whether the air dates were used as evidence.</param>
@@ -961,6 +1014,8 @@ public static partial class ProviderNumbering
         int byTitle,
         int byOrder,
         int byAnchor,
+        int byCounter,
+        int counterOffset,
         int anchors,
         int anchorsPlaced,
         bool datesReliable,
@@ -988,7 +1043,7 @@ public static partial class ProviderNumbering
         }
 
         var assignable = slots.Length - duplicateCount;
-        var matched = byDate + byTitle + byOrder + byAnchor;
+        var matched = byDate + byTitle + byOrder + byAnchor + byCounter;
         var coverage = assignable <= 0 ? 0 : (double)matched / assignable;
 
         var reason = forcedReason;
@@ -1019,6 +1074,8 @@ public static partial class ProviderNumbering
             byTitle,
             byOrder,
             byAnchor,
+            byCounter,
+            counterOffset,
             anchors,
             anchorsPlaced,
             datesReliable,

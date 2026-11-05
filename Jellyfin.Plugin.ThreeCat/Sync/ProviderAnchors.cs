@@ -9,8 +9,10 @@ namespace Jellyfin.Plugin.ThreeCat.Sync;
 /// <remarks>
 /// It is the only evidence that survives a change of language: 3Cat titles a dub in Catalan and the providers
 /// publish the original titles, so when a series was dubbed years after it aired there is nothing in the text
-/// nor in the air dates that ties both catalogs. One anchor is enough for the rest of the season: the order of
-/// 3Cat is the order of the provider, so the videos around it are numbered by walking the provider list.
+/// nor in the air dates that ties both catalogs. The <c>capitol</c> of 3Cat usually does the work on its own (see
+/// <see cref="ProviderNumbering"/>); the anchor is what calibrates the difference when the counter of 3Cat and the
+/// absolute numbering of the provider do not start at the same episode: «T22xC6=906» fixes how far apart both
+/// counters are, and the whole program follows from that single number.
 /// </remarks>
 /// <param name="Season">Season of 3Cat the anchor names («T22» → 22).</param>
 /// <param name="Chapter">

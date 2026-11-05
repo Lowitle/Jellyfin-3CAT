@@ -21,7 +21,7 @@ public sealed class ConfigPageTests
     /// </summary>
     private static readonly Regex CamelCaseRead = new(
         @"\b(?:report|row|candidate|result|config|block|program)\.(?:programId|title|source|externalId|videos|matched"
-        + @"|byDate|byTitle|byOrder|byAnchor|anchors|datesReliable|blocks|specials|duplicates|coverage|usesThreeCat"
+        + @"|byDate|byTitle|byOrder|byAnchor|byCounter|counterOffset|anchors|datesReliable|blocks|specials|duplicates|coverage|usesThreeCat"
         + @"|message|rows|candidates"
         + @"|videoId|aired|season|episode|chapter|method|providerTitle|providerAirDate|records|programs"
         + @"|numbered|firstChapter|lastChapter|firstCounter|lastCounter"

@@ -424,7 +424,7 @@
                         <input is="emby-input" type="text" id="ThreeCatMappingTmdb"
                                placeholder="Id o URL de TMDB: 30983" />
                         <input is="emby-input" type="text" id="ThreeCatMappingAnchors"
-                               placeholder="Anclas: T1=1; T20=856 (opcional)" />
+                               placeholder="Anclas: T22xC6=906 (opcional)" />
                         <button is="emby-button" type="button" id="ThreeCatMappingRun" class="raised">
                             <span>Ver el emparejamiento con TMDB</span>
                         </button>
@@ -434,11 +434,12 @@
                         El primer campo es el programa de 3Cat: su id, la URL de su página, su título o el id
                         de cualquiera de sus vídeos. El segundo es el id de la serie en TMDB (o la URL de su
                         ficha) y manda sobre el del dataset y sobre el de la tabla de programas. El tercero son
-                        las anclas: <code>T1=1</code> dice que la temporada 1 de 3Cat empieza en el episodio 1
-                        de TMDB, <code>T22xC6=906</code> que ese capítulo es ese episodio, y el resto de la
-                        temporada se numera siguiendo el orden de TMDB hacia arriba y hacia abajo. Son la única
-                        evidencia que funciona cuando el doblaje y el original no comparten ni títulos ni
-                        fechas.
+                        las anclas, y casi nunca hacen falta: el <code>capitol</code> que publica 3Cat numera
+                        el programa entero (1.206 capítulos en «El detectiu Conan», con los huecos de su
+                        catálogo incluidos), así que el vídeo se empareja con el episodio que ocupa esa
+                        posición en TMDB. El ancla solo corrige el desfase cuando los dos contadores no empiezan
+                        en el mismo episodio: <code>T22xC6=906</code> dice que ese capítulo es ese episodio y
+                        el resto del programa se numera con la diferencia que eso implica.
                     </div>
 
                     <div class="fieldDescription" id="ThreeCatMappingStatus">
@@ -510,9 +511,10 @@
                         <span>Escribir archivos .nfo</span>
                     </label>
                     <div class="fieldDescription">
-                        El <code>.nfo</code> local es la fuente de metadatos de la biblioteca: el número de
-                        episodio de 3Cat (<code>capitol</code>) no coincide con TVDB ni con TMDB, así que conviene
-                        desactivar los metadatos en línea en la biblioteca.
+                        El <code>.nfo</code> local es la fuente de metadatos de la biblioteca: sin la fuente TMDB
+                        el episodio se numera con la temporada y el capítulo que 3Cat escribe en el título, que
+                        no son los de TVDB ni los de TMDB, así que conviene desactivar los metadatos en línea en
+                        la biblioteca.
                     </div>
 
                     <label class="checkboxContainer">
@@ -832,6 +834,10 @@
                     + ' (fecha ' + threeCatInt(threeCatField(report, 'byDate'), 0)
                     + ' · título ' + threeCatInt(threeCatField(report, 'byTitle'), 0)
                     + ' · orden ' + threeCatInt(threeCatField(report, 'byOrder'), 0)
+                    + ' · capitol ' + threeCatInt(threeCatField(report, 'byCounter'), 0)
+                    + (threeCatInt(threeCatField(report, 'counterOffset'), 0) !== 0
+                        ? ' (desfase ' + threeCatInt(threeCatField(report, 'counterOffset'), 0) + ')'
+                        : '')
                     + ' · ancla ' + threeCatInt(threeCatField(report, 'byAnchor'), 0) + ')'
                     + (anchors > 0 ? ' · Anclas colocadas: ' + placed + '/' + anchors : '')
                     + ' · Temporada 0: ' + threeCatInt(threeCatField(report, 'specials'), 0)

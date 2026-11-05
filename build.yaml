@@ -1,7 +1,7 @@
 ---
 name: "3Cat"
 guid: "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-version: "1.8.0.0"
+version: "1.8.1.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Crea una biblioteca de series con el catálogo a la carta de 3Cat (.strm + metadatos + subtítulos)."
@@ -16,6 +16,20 @@ owner: "Lowitle"
 artifacts:
   - "Jellyfin.Plugin.ThreeCat.dll"
 changelog: >
+  1.8.1.0: el «capitol» de 3Cat pasa de pista a evidencia y el emparejamiento deja de necesitar anclas. Ese
+  contador numera el programa entero y no la temporada: «El detectiu Conan» va del 1 al 1.206 sin un solo paso
+  atrás (T1 acaba en 43 y T2 empieza en 44, T3 en 89 y, tras los 720 capítulos que 3Cat no aloja, T20 empieza
+  en 857), así que el vídeo es el episodio que ocupa esa posición en la lista absoluta de TMDB. Antes el
+  emparejamiento contaba vídeos en vez de leer números y, con los huecos del catálogo, numeraba el capítulo 857
+  como el 136; además el relleno de las anclas se detenía en cada cambio de temporada y solo alcanzaba la
+  temporada del ancla. Ahora hay una pasada propia que respeta los huecos, el orden de publicación de los
+  capítulos y los programas que solo publican una parte del catálogo, y que se desactiva sola cuando el
+  contador no es del programa (si reinicia en cada tanda o si va hacia atrás por una reemisión). Medido sobre
+  el catálogo real de «El detectiu Conan»: 329 de 385 vídeos emparejados (85,5 %) con cero desviaciones frente
+  al 0 % de la 1.8.0.0 sin anclas, y el 100 % si TMDB lista los 1.206 capítulos. Las anclas siguen ahí, pero
+  ahora solo sirven para calibrar el desfase entre los dos contadores con una sola línea. La vista previa
+  añade el contador «capitol» al resumen, marca cada vídeo con la evidencia «capitol» y avisa del desfase
+  cuando las anclas lo fijan.
   1.8.0.0: el emparejamiento deja de creerse las fechas que no son suyas y estrena anclas. 3Cat publica la
   fecha de su propia emisión, así que en una serie doblada años después de estrenarse la fecha de cada vídeo
   no tiene nada que ver con la del episodio: «Detectiu Conan» se emitió en TV3 a cinco capítulos por semana

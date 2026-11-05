@@ -507,10 +507,22 @@ public sealed class ThreeCatPlayController : ControllerBase
                                 + " ocupado por otra ancla.";
                         }
 
-                        if (!result.DatesReliable && result.Anchors == 0)
+                        if (!result.DatesReliable && result.Anchors == 0 && result.ByCounter == 0)
                         {
                             message += " Las fechas de 3Cat no coinciden con las de TMDB (son las del doblaje),"
                                 + " así que no se han usado: sin anclas no hay forma de emparejar los vídeos.";
+                        }
+                        else if (!result.DatesReliable && result.ByCounter > 0)
+                        {
+                            message += $" Las fechas de 3Cat son las del doblaje y no se han usado: los"
+                                + $" {result.ByCounter} vídeos que no empareja ninguna otra evidencia se emparejan"
+                                + " por el contador «capitol» de 3Cat, que numera el programa entero.";
+
+                            if (result.CounterOffset != 0)
+                            {
+                                message += $" El contador va desfasado {result.CounterOffset} respecto a TMDB"
+                                    + " (lo dicen tus anclas).";
+                            }
                         }
                     }
                 }
@@ -549,6 +561,8 @@ public sealed class ThreeCatPlayController : ControllerBase
             result?.ByTitle ?? 0,
             result?.ByOrder ?? 0,
             result?.ByAnchor ?? 0,
+            result?.ByCounter ?? 0,
+            result?.CounterOffset ?? 0,
             result?.Anchors ?? anchorList.Count,
             result?.AnchorsPlaced ?? 0,
             result?.DatesReliable ?? false,
@@ -765,6 +779,7 @@ public sealed class ThreeCatPlayController : ControllerBase
             ProviderMatch.Title => "título",
             ProviderMatch.Order => "orden",
             ProviderMatch.Anchor => "ancla",
+            ProviderMatch.Counter => "capitol",
             _ => "sin evidencia"
         };
 
@@ -889,6 +904,11 @@ public sealed record ThreeCatMappingRow(
 /// <param name="ByTitle">Videos paired by title.</param>
 /// <param name="ByOrder">Videos paired by order inside a gap.</param>
 /// <param name="ByAnchor">Videos paired by an anchor typed by the user.</param>
+/// <param name="ByCounter">Videos paired by the <c>capitol</c> counter of 3Cat.</param>
+/// <param name="CounterOffset">
+/// Difference the anchors deduced between the counter of 3Cat and the absolute numbering of the provider; 0 when
+/// both start at the same episode.
+/// </param>
 /// <param name="Anchors">Anchors the user typed, whether they could be placed or not.</param>
 /// <param name="AnchorsPlaced">Anchors that could be placed.</param>
 /// <param name="DatesReliable">
@@ -919,6 +939,8 @@ public sealed record ThreeCatMappingReport(
     int ByTitle,
     int ByOrder,
     int ByAnchor,
+    int ByCounter,
+    int CounterOffset,
     int Anchors,
     int AnchorsPlaced,
     bool DatesReliable,
