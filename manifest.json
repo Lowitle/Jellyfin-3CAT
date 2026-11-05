@@ -8,6 +8,14 @@
   "category": "General",
   "versions": [
     {
+      "version": "1.7.1.1",
+      "changelog": "3Cat 1.7.1.1",
+      "targetAbi": "10.11.0.0",
+      "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.7.1.1/threecat_1.7.1.1.zip",
+      "checksum": "08A4DD79E423C7BA434A29977271BE83",
+      "timestamp": "2026-11-05T10:40:40Z"
+    },
+    {
       "version": "1.7.1.0",
       "changelog": "La vista previa del emparejamiento acepta el programa escrito como sea: el «programatv_id», la URL de su página («https://www.3cat.cat/3cat/detectiu-conan/»), su «slug», su título («El detectiu Conan») o el id de cualquiera de sus vídeos, y estrena un segundo campo para el id de TMDB —o la URL de su ficha— que manda sobre el del dataset y sobre el de la tabla de programas. Antes solo entendía el id de un programa o la URL de un vídeo, y un id o una URL de TMDB se leían como un programa de 3Cat que no existía: 3Cat respondía 404 y la vista previa se quedaba sin tabla ni explicación. Ahora la referencia se resuelve contra el catálogo de programas que la página ya tiene en memoria —el buscador de 3Cat publica el «slug» de cada programa junto a su id, así que la URL y el título no cuestan ninguna petición extra—; la respuesta es siempre una tabla con su mensaje, también cuando no hay nada que emparejar; la página enseña los contadores del emparejamiento (vídeos, emparejados por fecha, por título y por orden, temporada 0, duplicados y cobertura) para saber si una serie se renumeraría con TMDB o se quedaría con 3Cat; y si la referencia encaja con varios programas («Conan» es «El detectiu Conan» y «Conan, el nen del futur») la página los ofrece para elegir uno con un clic en vez de fallar. El mensaje dice qué falta cuando falta algo: el id de TMDB, la clave de la API o la respuesta de TMDB.",
       "targetAbi": "10.11.0.0",
