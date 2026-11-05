@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.ThreeCat.Configuration;
 using Jellyfin.Plugin.ThreeCat.Library;
+using Jellyfin.Plugin.ThreeCat.Providers;
 using Jellyfin.Plugin.ThreeCat.ThreeCat;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
@@ -12,6 +13,8 @@ namespace Jellyfin.Plugin.ThreeCat.Sync;
 public sealed partial class ThreeCatSyncService
 {
     private readonly ThreeCatClient _client;
+    private readonly OpenTvIdsClient _openTvIds;
+    private readonly TmdbClient _tmdb;
     private readonly ILibraryMonitor _libraryMonitor;
     private readonly ILogger<ThreeCatSyncService> _logger;
 
@@ -19,14 +22,20 @@ public sealed partial class ThreeCatSyncService
     /// Initializes a new instance of the <see cref="ThreeCatSyncService"/> class.
     /// </summary>
     /// <param name="client">3Cat API client.</param>
+    /// <param name="openTvIds">Identity dataset, read only when a program uses an external source.</param>
+    /// <param name="tmdb">TMDB client, read only when a program is numbered with it.</param>
     /// <param name="libraryMonitor">Library monitor, notified after each series is updated.</param>
     /// <param name="logger">Logger.</param>
     public ThreeCatSyncService(
         ThreeCatClient client,
+        OpenTvIdsClient openTvIds,
+        TmdbClient tmdb,
         ILibraryMonitor libraryMonitor,
         ILogger<ThreeCatSyncService> logger)
     {
         _client = client;
+        _openTvIds = openTvIds;
+        _tmdb = tmdb;
         _libraryMonitor = libraryMonitor;
         _logger = logger;
     }
@@ -67,6 +76,10 @@ public sealed partial class ThreeCatSyncService
         LibraryPath.EnsureWritableRoot(configuration.DestinationPath);
         _logger.LogInformation("3Cat: carpeta de destino {Path}", configuration.DestinationPath.Trim());
 
+        // The identities are only needed by the programs that number with a provider; a run with the
+        // default source must not touch the network for a dataset it will not use.
+        var dataset = await RefreshCrossIdsAsync(configuration, cancellationToken).ConfigureAwait(false);
+
         var totalWritten = 0;
         for (var i = 0; i < references.Count; i++)
         {
@@ -78,6 +91,7 @@ public sealed partial class ThreeCatSyncService
                 totalWritten += await SyncProgramAsync(
                     configuration,
                     references[index],
+                    dataset,
                     fraction => progress?.Report(
                         ((index + Math.Clamp(fraction, 0d, 1d)) / references.Count) * 100d),
                     cancellationToken).ConfigureAwait(false);
@@ -96,6 +110,36 @@ public sealed partial class ThreeCatSyncService
         SaveRunState(references);
         _logger.LogInformation("3Cat: sincronización completada, {Files} archivos escritos", totalWritten);
     }
+
+    /// <summary>
+    /// Keeps the identity dataset fresh when the run is going to use an external numbering.
+    /// </summary>
+    /// <param name="configuration">Plugin configuration.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The identities, read once for the whole run; empty when no program uses them.</returns>
+    /// <remarks>
+    /// The dataset is republished every Monday, so a refresh per run is enough and a failure is never
+    /// fatal: <see cref="OpenTvIdsClient.LoadAsync"/> falls back to the previous copy and the programs
+    /// that need an id they do not have keep the numbering of 3Cat.
+    /// </remarks>
+    private async Task<OpenTvIdsDataset> RefreshCrossIdsAsync(
+        PluginConfiguration configuration,
+        CancellationToken cancellationToken)
+        => UsesExternalIds(configuration)
+            ? await _openTvIds
+                .LoadAsync(configuration.OpenTvIdsUrl, forceRefresh: true, cancellationToken)
+                .ConfigureAwait(false)
+            : OpenTvIdsDataset.Empty;
+
+    /// <summary>
+    /// Tells whether any program of the run numbers its episodes with TMDB or TVDB.
+    /// </summary>
+    /// <param name="configuration">Plugin configuration.</param>
+    /// <returns><c>true</c> when the identity dataset is needed.</returns>
+    private static bool UsesExternalIds(PluginConfiguration configuration)
+        => configuration.MetadataSource != MetadataSource.ThreeCat
+            || (configuration.Programs?.Any(
+                program => program.Override is { } source && source != MetadataSource.ThreeCat) ?? false);
 
     /// <summary>
     /// Stores the series folder written for each program, so the next run can clean up after a program
@@ -148,6 +192,14 @@ public sealed partial class ThreeCatSyncService
             if (!string.Equals(program.WrittenMirror, reference.WrittenMirror, StringComparison.Ordinal))
             {
                 program.WrittenMirror = reference.WrittenMirror;
+                changed = true;
+            }
+
+            // The source is what tells the next run that the folder carries the numbering of another
+            // provider and has to be rewritten; it is only saved when the run really reached the program.
+            if (program.WrittenSource != reference.WrittenSource)
+            {
+                program.WrittenSource = reference.WrittenSource;
                 changed = true;
             }
         }

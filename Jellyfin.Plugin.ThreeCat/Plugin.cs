@@ -1,5 +1,6 @@
 using System.Globalization;
 using Jellyfin.Plugin.ThreeCat.Configuration;
+using Jellyfin.Plugin.ThreeCat.Sync;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
@@ -79,6 +80,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         if (configuration.Programs is null)
         {
             configuration.Programs = [];
+            changed = true;
+        }
+
+        // A configuration written before the dataset existed (or with the field emptied by hand) points
+        // at the dataset the plugin publishes.
+        if (string.IsNullOrWhiteSpace(configuration.OpenTvIdsUrl))
+        {
+            configuration.OpenTvIdsUrl = OpenTvIdsClient.DefaultUrl;
             changed = true;
         }
 

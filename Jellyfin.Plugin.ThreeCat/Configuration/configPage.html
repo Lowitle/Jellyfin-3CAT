@@ -271,9 +271,11 @@
                         <table class="threeCatTable">
                             <thead>
                                 <tr>
-                                    <th style="width: 40%">Programa</th>
-                                    <th style="width: 20%">Referencia</th>
-                                    <th style="width: 30%">También en</th>
+                                    <th style="width: 26%">Programa</th>
+                                    <th style="width: 13%">Referencia</th>
+                                    <th style="width: 15%">Fuente</th>
+                                    <th style="width: 12%">id TMDB</th>
+                                    <th style="width: 24%">También en</th>
                                     <th style="width: 10%"></th>
                                 </tr>
                             </thead>
@@ -327,6 +329,120 @@
                         «Crear biblioteca» añade la carpeta de destino a una biblioteca de tipo «Programas de TV»
                         que lee los <code>.nfo</code> locales. Si ya existe una biblioteca llamada «3Cat», se le
                         añade la carpeta en lugar de crear otra.
+                    </div>
+                </div>
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Fuente de metadatos</h2>
+
+                    <div class="fieldDescription" id="ThreeCatDatasetStatus">
+                        Cargando el estado del dataset de identificadores…
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatOpenTvIdsUrl">URL del dataset de identificadores</label>
+                        <input is="emby-input" type="text" id="ThreeCatOpenTvIdsUrl" />
+                        <div class="fieldDescription">
+                            El plugin descarga el dataset <code>open-tv-ids</code>, que traduce el
+                            <code>programatv_id</code> de 3Cat al id de la misma obra en Wikidata, IMDb, TMDB y
+                            TVDB, y lo guarda en la carpeta de datos del plugin. Una descarga fallida conserva la
+                            copia anterior y nunca detiene la actualización. Cambia la URL solo para usar un fork
+                            o una copia local.
+                        </div>
+                    </div>
+
+                    <div class="threeCatActions">
+                        <button is="emby-button" type="button" id="ThreeCatRefreshDataset" class="raised">
+                            <span>Actualizar dataset ahora</span>
+                        </button>
+                    </div>
+
+                    <div class="fieldDescription">
+                        El dataset solo identifica la serie: mientras la numeración siga siendo la de 3Cat, la
+                        biblioteca no debe pedir a Jellyfin los episodios en línea de TMDB o TVDB, porque su
+                        numeración todavía no coincide con la de los ficheros.
+                    </div>
+                </div>
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Numeración de los episodios</h2>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatMetadataSource">Fuente de metadatos</label>
+                        <select is="emby-select" id="ThreeCatMetadataSource">
+                            <option value="0">Catálogo de 3Cat (numeración de 3Cat)</option>
+                            <option value="1">TMDB (numeración de TMDB)</option>
+                            <option value="2" disabled>TVDB (próxima versión)</option>
+                        </select>
+                        <div class="fieldDescription">
+                            Con «Catálogo de 3Cat», la de siempre, el plugin escribe la numeración que 3Cat
+                            publica en el título («T22xC6») y el <code>tvshow.nfo</code> queda exactamente como
+                            en la versión anterior. Con «TMDB», el plugin empareja cada vídeo con el episodio de
+                            TMDB por fecha de emisión y por título, y escribe la temporada y el episodio de TMDB
+                            en el nombre del fichero, en el <code>.nfo</code> y en la carpeta
+                            <code>Season NN</code>, que es lo que hace que Jellyfin muestre la ficha online de
+                            cada episodio. Si el dataset no resuelve un id, si no hay clave o si el
+                            emparejamiento no llega a la mitad de los vídeos, la serie se queda con la
+                            numeración de 3Cat.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatTmdbApiKey">Clave de TMDB</label>
+                        <input is="emby-input" type="password" id="ThreeCatTmdbApiKey" autocomplete="off" />
+                        <div class="fieldDescription">
+                            Clave v3 o token de lectura v4 de tu cuenta de TMDB. Se guarda en la configuración
+                            del plugin y no se escribe nunca en el registro. Sin clave, las series se siguen
+                            numerando con 3Cat.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatTmdbLanguage">Idioma de las fichas de TMDB</label>
+                        <input is="emby-input" type="text" id="ThreeCatTmdbLanguage" placeholder="es-ES" />
+                        <div class="fieldDescription">
+                            Solo afecta a los títulos de episodio que se leen de TMDB; el emparejamiento va por
+                            fecha de emisión y no depende del idioma. «ca-ES» no existe para casi todo el
+                            catálogo.
+                        </div>
+                    </div>
+
+                    <div class="fieldDescription">
+                        <strong>Cambiar la fuente de un programa renumera su carpeta:</strong> Jellyfin vuelve a
+                        importar esos episodios y se pierde el «visto» de esa serie. El plugin solo borra la
+                        carpeta vieja cuando es suya y su <code>tvshow.nfo</code> nombra ese programa.
+                    </div>
+                </div>
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Vista previa del emparejamiento</h2>
+
+                    <div class="threeCatActions">
+                        <input is="emby-input" type="text" id="ThreeCatMappingProgram"
+                               placeholder="119987484 o https://www.3cat.cat/3cat/..." />
+                        <button is="emby-button" type="button" id="ThreeCatMappingRun" class="raised">
+                            <span>Ver el emparejamiento con TMDB</span>
+                        </button>
+                    </div>
+
+                    <div class="fieldDescription" id="ThreeCatMappingStatus">
+                        Muestra la tabla «vídeo de 3Cat ↔ episodio de TMDB» sin escribir ningún fichero. Es la
+                        comprobación que hay que hacer antes de cambiar la fuente de una serie.
+                    </div>
+
+                    <div class="threeCatTableWrap" id="ThreeCatMappingWrap" style="display: none">
+                        <table class="threeCatTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30%">Vídeo de 3Cat</th>
+                                    <th style="width: 12%">Fecha</th>
+                                    <th style="width: 12%">Episodio</th>
+                                    <th style="width: 12%">Evidencia</th>
+                                    <th style="width: 34%">Episodio de TMDB</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ThreeCatMappingBody"></tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -502,6 +618,121 @@
 
             function threeCatLibraryStatus(message) {
                 document.querySelector('#ThreeCatLibraryStatus').textContent = message || '';
+            }
+
+            function threeCatDatasetStatus(message) {
+                document.querySelector('#ThreeCatDatasetStatus').textContent = message || '';
+            }
+
+            // The dataset is read by the server, never by the page: this only shows how many identities it
+            // has and how many of the configured programs resolve to a provider. A failed download does not
+            // throw, it comes back as an empty dataset with a message.
+            function threeCatLoadDataset(force) {
+                threeCatDatasetStatus('Leyendo el dataset de identificadores…');
+
+                var request = force
+                    ? ApiClient.ajax({ type: 'POST', url: threeCatUrl('Dataset/Refresh'), dataType: 'json' })
+                    : ApiClient.getJSON(threeCatUrl('Dataset'));
+
+                return request.then(function (result) {
+                    var records = threeCatInt(threeCatField(result, 'records'), 0);
+                    var programs = threeCatInt(threeCatField(result, 'programs'), 0);
+                    var tmdb = threeCatInt(threeCatField(result, 'withTmdb'), 0);
+                    var tvdb = threeCatInt(threeCatField(result, 'withTvdb'), 0);
+                    var imdb = threeCatInt(threeCatField(result, 'withImdb'), 0);
+                    var message = threeCatField(result, 'message') || '';
+
+                    if (programs > 0 && records > 0) {
+                        message += ' Programas configurados con id: TMDB ' + tmdb + ', TVDB ' + tvdb
+                            + ', IMDb ' + imdb + ' de ' + programs + '.';
+                    }
+
+                    threeCatDatasetStatus(message);
+                    return result;
+                }, function (reason) {
+                    threeCatDatasetStatus(threeCatErrorMessage(
+                        reason,
+                        'No se pudo leer el dataset de identificadores.'));
+                });
+            }
+
+            // Reads a source as a number (0, 1, 2) or as the name of the enum, whichever the server sends, and
+            // returns the number. `null` means «no value», which for a program is «inherit the global source».
+            function threeCatSourceValue(value) {
+                if (value === null || value === undefined || value === '') {
+                    return null;
+                }
+
+                if (typeof value === 'number') {
+                    return value;
+                }
+
+                var text = String(value).toLowerCase();
+
+                if (text === 'threecat' || text === '3cat' || text === '0') {
+                    return 0;
+                }
+
+                if (text === 'tmdb' || text === '1') {
+                    return 1;
+                }
+
+                if (text === 'tvdb' || text === '2') {
+                    return 2;
+                }
+
+                return null;
+            }
+
+            function threeCatMappingRow(row) {
+                var tr = document.createElement('tr');
+
+                tr.appendChild(threeCatElement('td', '', row.title || row.videoId));
+                tr.appendChild(threeCatElement('td', 'threeCatMono',
+                    row.aired ? String(row.aired).slice(0, 10) : '—'));
+                tr.appendChild(threeCatElement('td', 'threeCatMono',
+                    'S' + String(row.season).padStart(2, '0')
+                    + 'E' + String(row.episode).padStart(2, '0')));
+                tr.appendChild(threeCatElement('td', '', row.method));
+                tr.appendChild(threeCatElement('td', '', row.providerTitle
+                    ? row.providerTitle + (row.providerAirDate ? ' (' + row.providerAirDate + ')' : '')
+                    : '—'));
+
+                return tr;
+            }
+
+            // Shows the table «video of 3Cat ↔ episode of TMDB» without writing a file: it is the check the
+            // design asks for before renaming a whole series, and the page is where it belongs because the
+            // user is the one who has the TMDB key.
+            function threeCatRunMapping() {
+                var programId = document.querySelector('#ThreeCatMappingProgram').value.trim();
+                var status = document.querySelector('#ThreeCatMappingStatus');
+                var wrap = document.querySelector('#ThreeCatMappingWrap');
+                var body = document.querySelector('#ThreeCatMappingBody');
+
+                if (!programId) {
+                    status.textContent = 'Escribe el id del programa o pega la URL de cualquiera de sus vídeos.';
+                    return;
+                }
+
+                status.textContent = 'Leyendo el catálogo y TMDB…';
+                wrap.style.display = 'none';
+                body.innerHTML = '';
+
+                ApiClient.getJSON(threeCatUrl('Mapping', { programId: programId, source: 'tmdb' }))
+                    .then(function (report) {
+                        status.textContent = (report.title || report.programId) + ': ' + (report.message || '');
+
+                        (report.rows || []).forEach(function (row) {
+                            body.appendChild(threeCatMappingRow(row));
+                        });
+
+                        wrap.style.display = (report.rows || []).length > 0 ? '' : 'none';
+                    }, function (reason) {
+                        status.textContent = threeCatErrorMessage(
+                            reason,
+                            'No se pudo leer el emparejamiento. Comprueba el id y la clave de TMDB.');
+                    });
             }
 
             function threeCatUrl(method, query) {
@@ -811,6 +1042,60 @@
                 return cell;
             }
 
+            // The source of a program: «Heredar» follows the global one and the other values pin it. TVDB is
+            // offered disabled because its numbering is not implemented yet; a value saved by another
+            // version is shown as is, so saving the page never changes a setting the page does not offer.
+            function threeCatProgramSourceCell(program) {
+                var cell = threeCatElement('td', 'threeCatCellSource');
+                var select = threeCatElement('select', 'threeCatSelect');
+                select.id = 'ThreeCatProgramSource-' + program.Id;
+
+                [
+                    { value: '', label: 'Heredar' },
+                    { value: '0', label: '3Cat' },
+                    { value: '1', label: 'TMDB' },
+                    { value: '2', label: 'TVDB (próxima versión)', disabled: true }
+                ].forEach(function (option) {
+                    var element = threeCatElement('option', '', option.label);
+                    element.value = option.value;
+                    element.selected = program.Override === null || program.Override === undefined
+                        ? option.value === ''
+                        : String(program.Override) === option.value;
+                    element.disabled = option.disabled === true;
+                    select.appendChild(element);
+                });
+
+                select.addEventListener('change', function () {
+                    program.Override = this.value === '' ? null : Number(this.value);
+                    threeCatStatus('Fuente de «' + (program.Title || program.Id)
+                        + '» cambiada. Pulsa «Guardar» para aplicarla.');
+                });
+
+                cell.appendChild(select);
+                return cell;
+            }
+
+            // The manual TMDB id: it wins over the dataset and it is how a wrong or missing id is fixed.
+            function threeCatProgramIdCell(program) {
+                var cell = threeCatElement('td', 'threeCatCellId');
+                var input = threeCatElement('input', 'emby-input threeCatIdInput');
+                input.type = 'text';
+                input.id = 'ThreeCatProgramTmdb-' + program.Id;
+                input.placeholder = 'id TMDB';
+                input.value = program.TmdbId || '';
+                input.addEventListener('input', function () {
+                    program.TmdbId = this.value.trim();
+                });
+                // The table lives inside the configuration form: Enter in the box would save the page.
+                input.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                    }
+                });
+                cell.appendChild(input);
+                return cell;
+            }
+
             function threeCatRenderPrograms() {
                 var body = document.querySelector('#ThreeCatProgramsBody');
                 var programs = ThreeCatConfig.programs;
@@ -827,6 +1112,8 @@
                     reference.appendChild(threeCatElement('span', 'threeCatMono', program.Id));
                     row.appendChild(reference);
 
+                    row.appendChild(threeCatProgramSourceCell(program));
+                    row.appendChild(threeCatProgramIdCell(program));
                     row.appendChild(threeCatProgramLibraryCell(program));
 
                     var actions = threeCatElement('td');
@@ -866,6 +1153,10 @@
                 ThreeCatConfig.programs.push({
                     Id: programId,
                     Title: title,
+                    Override: null,
+                    TmdbId: '',
+                    TvdbId: '',
+                    WrittenSource: null,
                     DestinationPath: '',
                     WrittenPath: '',
                     WrittenMirror: ''
@@ -1690,6 +1981,14 @@
                         return {
                             Id: threeCatField(program, 'id') || '',
                             Title: threeCatField(program, 'title') || '',
+                            // The source is offered per program; the page reads it as a number or as the name
+                            // of the enum, whichever the server serialises, and saves it as a number.
+                            Override: threeCatSourceValue(threeCatField(program, 'override')),
+                            TmdbId: threeCatField(program, 'tmdbId') || '',
+                            TvdbId: threeCatField(program, 'tvdbId') || '',
+                            // The source the last run wrote is a cache of the task: it is carried through so
+                            // saving the page never makes the next run rewrite a series for nothing.
+                            WrittenSource: threeCatSourceValue(threeCatField(program, 'writtenSource')),
                             DestinationPath: threeCatPath(threeCatField(program, 'destinationPath')),
                             // The folders the last run wrote, kept so the page does not drop them: they are
                             // what lets the task remove a series that is renamed or that loses its copy.
@@ -1700,6 +1999,14 @@
 
                     document.querySelector('#ThreeCatDestinationPath').value =
                         threeCatField(config, 'destinationPath') || '';
+                    document.querySelector('#ThreeCatOpenTvIdsUrl').value =
+                        threeCatField(config, 'openTvIdsUrl') || '';
+                    document.querySelector('#ThreeCatMetadataSource').value =
+                        String(threeCatSourceValue(threeCatField(config, 'metadataSource')) || 0);
+                    document.querySelector('#ThreeCatTmdbApiKey').value =
+                        threeCatField(config, 'tmdbApiKey') || '';
+                    document.querySelector('#ThreeCatTmdbLanguage').value =
+                        threeCatField(config, 'tmdbLanguage') || '';
                     document.querySelector('#ThreeCatRefreshInterval').value =
                         threeCatInt(threeCatField(config, 'refreshIntervalHours'), 12);
                     document.querySelector('#ThreeCatMaxItems').value =
@@ -1720,6 +2027,7 @@
                         threeCatField(config, 'deleteObsolete') === true;
 
                     threeCatRenderPrograms();
+                    threeCatLoadDataset(false);
                     threeCatStatus('');
                     Dashboard.hideLoadingMsg();
                 }, function () {
@@ -1739,12 +2047,21 @@
                         return {
                             Id: program.Id,
                             Title: program.Title,
+                            Override: program.Override,
+                            TmdbId: program.TmdbId || null,
+                            TvdbId: program.TvdbId || null,
+                            WrittenSource: program.WrittenSource,
                             DestinationPath: threeCatPath(program.DestinationPath),
                             WrittenPath: threeCatPath(program.WrittenPath),
                             WrittenMirror: threeCatPath(program.WrittenMirror)
                         };
                     });
                     config.DestinationPath = document.querySelector('#ThreeCatDestinationPath').value.trim();
+                    config.OpenTvIdsUrl = document.querySelector('#ThreeCatOpenTvIdsUrl').value.trim();
+                    config.MetadataSource = threeCatSourceValue(
+                        document.querySelector('#ThreeCatMetadataSource').value) || 0;
+                    config.TmdbApiKey = document.querySelector('#ThreeCatTmdbApiKey').value.trim();
+                    config.TmdbLanguage = document.querySelector('#ThreeCatTmdbLanguage').value.trim();
                     config.RefreshIntervalHours = threeCatInt(
                         document.querySelector('#ThreeCatRefreshInterval').value, 12);
                     config.MaxItemsPerProgram = threeCatInt(
@@ -1809,6 +2126,19 @@
                 document.querySelector('#ThreeCatCreateLibrary').addEventListener('click', threeCatCreateLibrary);
                 document.querySelector('#ThreeCatRunNow').addEventListener('click', threeCatRunNow);
                 document.querySelector('#ThreeCatListPrograms').addEventListener('click', threeCatLoadAllPrograms);
+
+                document.querySelector('#ThreeCatRefreshDataset').addEventListener('click', function () {
+                    threeCatLoadDataset(true);
+                });
+
+                document.querySelector('#ThreeCatMappingRun').addEventListener('click', threeCatRunMapping);
+
+                document.querySelector('#ThreeCatMappingProgram').addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        threeCatRunMapping();
+                    }
+                });
 
                 document.querySelector('#ThreeCatConfigForm').addEventListener('submit', function (event) {
                     event.preventDefault();

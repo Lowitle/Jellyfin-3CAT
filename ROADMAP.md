@@ -219,6 +219,133 @@ Opciones planteadas:
 que el usuario separe por tipo de biblioteca), espejo opcional de las películas con el mismo
 `CopyArtwork`, y decidir si el filtro de duración descarta o solo avisa.
 
+### 5. Identificadores externos (dataset de cruce con Wikidata) — fases 0.5 y A completadas
+
+El plugin solo escribe el id de IMDb cuando la ficha del programa lo publica, que es casi nunca. Sin
+`uniqueid` de TMDB o TVDB, Jellyfin no puede usar sus proveedores nativos: la carátula, el reparto y la
+sinopsis se quedan en las cuatro cosas que publica 3Cat.
+
+La fase 0.5 deja montado el puente sin tocar el plugin, y el dataset vive ya en su propio repositorio,
+[**open-tv-ids**](https://github.com/Lowitle/open-tv-ids), porque no es una parte del plugin:
+
+- **El constructor (`IdsBuilder`)** está allí, en `src/IdsBuilder`. Lee el volcado de `tools/CatalogDump`
+  (no llama a 3Cat) y busca cada título en las Wikipedias catalana, española e inglesa con una sola petición
+  por búsqueda (`generator=search` + `prop=pageprops`), que devuelve el artículo y su elemento de Wikidata.
+  Después lee los identificadores en lotes de 50 con una consulta SPARQL (`P345`, `P4983`, `P4947`, `P4835`,
+  `P580` y `P31/P279*` de Q5398426) y puntúa el emparejamiento.
+- **El dataset**: `data/3cat/series.jsonl` (una línea por programa publicado, con
+  `schema/series.schema.json`), `report/3cat/cobertura.md`, `report/3cat/revision.csv` y
+  `overrides/3cat.json`, con su propio `git init`, CI (`build.yaml`) y refresco semanal (`refresh.yaml`).
+- **89 tests** en `tests/IdsBuilder.Tests`, que corren en el CI de ese repositorio.
+
+**Fase A en el plugin (1.6.0.0).** El plugin ya consume el dataset sin cambiar la numeración:
+`Sync/OpenTvIdsClient.cs` lo descarga (`series.jsonl`, con la URL en la configuración), lo cachea en
+`<datos del plugin>/3cat/open-tv-ids-3cat.jsonl` y lo indexa por `emitterId`; una línea corrupta se
+ignora y una descarga fallida conserva la copia anterior, así que el dataset nunca detiene una
+sincronización. La tarea solo lo descarga cuando algún programa usa una fuente externa. La página
+muestra «dataset: N identidades, actualizado el AAAA-MM-DD» con la cobertura de los programas
+configurados (TMDB/TVDB/IMDb) y un botón de actualización manual. `PluginConfiguration` sube a la
+versión 3 (`MetadataSource` global, `ThreeCat` por defecto, `OpenTvIdsUrl` y, por programa, `Override`,
+`TmdbId` y `TvdbId`); `LibrarySeries` gana `TmdbId`, `TvdbId` y `NumberingSource`, y `NfoBuilder`
+escribe la matriz de `uniqueid`: `threecat` siempre y como `default`, `tmdb`/`tvdb` solo cuando la
+fuente de numeración es ese proveedor y hay id, e `imdb` al final. Con la fuente por defecto el
+`tvshow.nfo` es byte a byte el de 1.5.0.0 (lo fija un test), así que no se renombra ni se reescribe
+ninguna serie. La numeración de episodios sigue siendo `EpisodeNumbering`; el emparejamiento por
+fecha/título, el cliente de TMDB/TVDB y el selector de fuente por programa son la fase B.
+
+Dos decisiones de diseño que costaron una iteración cada una:
+
+1. **Evaluar tres candidatos y puntuarlos**, en vez de quedarse con la primera coincidencia. La búsqueda de
+   «Polònia» devuelve primero el país (Q36) y la de «Merlí», la página de desambiguación; el elemento bueno
+   («Polònia (programa)» → Q2688944, «Merlí (sèrie de televisió)» → Q21036200) es el segundo o el tercero.
+2. **El año del catálogo no penaliza.** `primera_emissio` es la fecha de alta en 3Cat, no la de estreno
+   («Bola de Drac Súper» figura en 2025 y la serie es de 2015), así que solo suma cuando coincide.
+
+Pendiente de la fase 1, antes de que el plugin lo consuma:
+
+1. Segunda fuente para marcar `verified`: TMDB `/find` a partir del id de IMDb y TVmaze
+   `/lookup/shows?imdb=`, que solo se piden para los registros ya publicados.
+2. Repasar `report/3cat/revision.csv` (sobre todo los programas propios de 3Cat, que no tienen artículo en
+   ninguna Wikipedia) y volcar las correcciones a `overrides/3cat.json`.
+3. ~~Que el plugin lea el dataset.~~ Hecho en la 1.6.0.0 (fase A): el dataset se descarga y se cachea,
+   `LibrarySeries` tiene `TmdbId`/`TvdbId` y el `.nfo` escribe `tmdb`/`tvdb` cuando la fuente de
+   numeración es ese proveedor. ~~Falta el emparejamiento con la numeración del proveedor.~~ Hecho en la
+   1.7.0.0 (fase B) para TMDB: `ProviderNumbering` empareja por fecha y título y la serie se numera como el
+   proveedor, con caída a 3Cat por debajo del 50 % de cobertura. Quedan TVDB y el modo absoluto (fase C).
+4. Segundo emisor del dataset (**rtve**): confirmar su endpoint público de programas y escribir su volcado
+   con el contrato de `input/README.md`.
+
+## v1.7.0.0 (fase B: numeración del proveedor)
+
+### 1. Numeración con TMDB (implementado)
+
+**Decisión.** Cuando la fuente de un programa es TMDB, la temporada y el episodio que se escriben en el
+nombre del fichero, en el `.nfo` y en la carpeta `Season NN` son los de TMDB, no los de 3Cat. El
+emparejamiento es interno del plugin y su salida es un `SxxEyy` ajeno: Jellyfin identifica un episodio por
+`(temporada, episodio)` y después pide al proveedor el episodio con ese índice, así que el nombre del
+fichero es el contrato.
+
+**Síntoma.** «El detectiu Conan» publica en 3Cat las temporadas 1-3, 20-24 y 27-30 con la numeración de su
+título (`T22xC6`) y TMDB las numera de forma continua: con la numeración de 3Cat, Jellyfin busca el
+episodio 6 de la temporada 22 del proveedor y encuentra el de otra temporada, o ninguno.
+
+**Causa.** La numeración de 3Cat (`EpisodeNumbering`, la `T` y la `C` del título) y la del proveedor son
+dos ejes distintos y no existe ninguna correspondencia publicada entre ellos. La única evidencia común es
+la fecha de emisión y, en menor medida, el título del episodio.
+
+**Corrección.** `Sync/ProviderNumbering.cs` (función pura, sin red) cruza los vídeos con los episodios del
+proveedor en este orden: fecha exacta → fecha ±1 día (zona horaria y cambios de parrilla) → título
+normalizado exacto (sin numeración, sin el nombre de la serie, sin acentos ni puntuación) → contención del
+título, solo con títulos de 8 caracteres o más y solo cuando un único episodio lo reclama → orden dentro de
+cada hueco entre dos parejas ya emparejadas, y solo cuando el hueco tiene el mismo número de vídeos que de
+episodios y sus fechas no se contradicen. Un episodio del proveedor no se asigna dos veces (gana el vídeo
+más antiguo), los vídeos repetidos de 3Cat se siguen descartando (`IsDuplicate`), los huecos del proveedor
+se respetan (`S27E09` se queda en 9) y la temporada 0 del proveedor se ignora. Si la cobertura queda por
+debajo del **50 %**, el resultado pide la numeración de 3Cat (`UseThreeCat`) y la sincronización usa
+`EpisodeNumbering`: mejor una serie consistente que una serie con huecos falsos.
+
+`Providers/TmdbClient.cs` lee `tv/{id}` y una petición por temporada (`tv/{id}/season/{n}`), cachea seis
+horas por serie, distingue la clave v3 (`api_key`) del token v4 (`Bearer`) por su forma, reintenta con
+`HttpRetryPolicy` y no escribe nunca la clave en el registro. Un fallo devuelve una lista vacía, nunca una
+excepción.
+
+**Informe.** Cada programa deja una línea en el registro con la fuente, el id, los episodios emparejados
+por fecha, por título y por orden, los que caen a la temporada 0, los duplicados y la cobertura; y, cuando
+se queda en 3Cat, el motivo (sin id, sin clave, TMDB no publica la serie, cobertura insuficiente). Sin eso,
+un cambio de numeración es indistinguible de un error.
+
+**Decisión de seguridad.** El id de TMDB nunca se busca: sale del dataset o de un valor escrito a mano, y
+el id manual gana. Nunca se escribe un `uniqueid` de proveedor sin numeración del proveedor: si la serie se
+queda en 3Cat, el `tvshow.nfo` es el de 1.5.0.0 (el test de la fase A lo fija byte a byte).
+
+**Reescritura al cambiar de fuente.** Cada programa guarda con qué fuente se escribió (`WrittenSource`); si
+la fuente resuelta no coincide, la carpeta se borra antes de reescribirla con el borrado seguro que ya
+existía (`StrmLibrary.TryDeleteSeriesFolder`, solo carpetas del plugin para ese programa). La migración fina
+—aviso de reimportación en la página, limpieza de restos— es la fase D.
+
+**Validación antes de renumerar.** `GET ThreeCat/Mapping?programId=…` devuelve la tabla
+`vídeo de 3Cat ↔ SxxEyy ↔ evidencia ↔ episodio de TMDB` sin escribir ningún fichero, y la página la pinta
+con el botón **Ver el emparejamiento con TMDB**. Es la comprobación que pide el diseño sobre «El detectiu
+Conan» antes de tocar una biblioteca: sin una clave de TMDB real no se puede ejecutar aquí, pero la tabla
+es exactamente lo que hará la tarea.
+
+**Pruebas.** `ProviderNumberingTests` (16 casos: fecha exacta y ±1 día, acentos y numeración delante,
+contención, huecos del proveedor, temporada 0 del proveedor, primero gana, duplicados, hueco forzado por
+orden, hueco rechazado por fechas, umbral y caída a 3Cat, normalización) y `TmdbClientTests` (temporadas,
+orden, temporada 0 ignorada, sin clave, sin id, 404, clave v3 y token v4, fecha vacía). `dotnet test`:
+343 en verde.
+
+**Ficheros.** `Providers/TmdbClient.cs`, `Providers/TmdbModels.cs`, `Sync/ProviderNumbering.cs`,
+`Sync/ThreeCatSyncService.Providers.cs`, `Sync/ThreeCatSyncService.cs`,
+`Sync/ThreeCatSyncService.Programs.cs`, `Configuration/PluginConfiguration.cs`,
+`PluginServiceRegistrator.cs`, `Api/ThreeCatPlayController.cs`, `Configuration/configPage.html`,
+`Tests/ProviderNumberingTests.cs`, `Tests/TmdbClientTests.cs`, `Tests/PluginConfigurationTests.cs`,
+`Directory.Build.props`, `build.yaml`, `README.md`.
+
+**Pendiente (fase C).** Cliente de TVDB con su token, `absoluteNumber` y el modo de numeración absoluta como
+opción explícita del programa. Hasta entonces la opción «TVDB» aparece deshabilitada en la página y, si se
+selecciona, la serie se numera con 3Cat y no se escribe ningún `uniqueid` de TVDB.
+
 ## Comprobaciones antes de publicar
 
 - `dotnet test` en verde y `dotnet build -c Release`.

@@ -73,6 +73,20 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
   como se emitieron; los programas que no numeran **nada** (los diarios tipo *Tarda oberta*) se quedan
   en la temporada 1 en orden de emisión. Los vídeos repetidos literalmente se descartan y, si dos
   emisiones distintas comparten numeración, la segunda pasa a la temporada 0 en vez de perderse.
+- **Numeración de un proveedor (TMDB)**: la fuente de metadatos —global y por programa— elige entre el
+  catálogo de 3Cat, que es lo de siempre, y TMDB. Con TMDB, el plugin empareja cada vídeo con el episodio
+  que TMDB publica para la serie y escribe **la temporada y el episodio de TMDB** en el nombre del fichero,
+  en el `.nfo` y en la carpeta `Season NN`, que es lo que hace que Jellyfin case la ficha online de cada
+  episodio. La evidencia se usa en este orden: fecha de emisión (el mismo día, luego ±1 día), título
+  normalizado (igualdad y después contención) y orden dentro del hueco entre dos parejas ya emparejadas,
+  solo cuando el hueco tiene el mismo número de vídeos que de episodios. Un episodio de TMDB nunca se asigna
+  dos veces y los huecos de su numeración se respetan (`S27E09` se queda en 9). Si el emparejamiento no
+  cubre **la mitad** de los vídeos, si el dataset no resuelve el id, si no hay clave de TMDB o si TMDB no
+  responde, la serie entera se queda con la numeración de 3Cat y el registro dice por qué: nunca queda una
+  serie a medias, con huecos falsos y episodios repetidos. La página de configuración tiene una **vista
+  previa** de la tabla «vídeo de 3Cat — episodio de TMDB» que no escribe ningún fichero, y cambiar la
+  fuente de un programa reescribe su carpeta (solo si es del plugin y su `tvshow.nfo` nombra ese programa)
+  porque Jellyfin reimporta esos episodios y se pierde el «visto» de esa serie.
 - **MP4 progresivo**: cada `.strm` contiene la URL `media.url[0].file` del endpoint de detalle
   (`api-media.3cat.cat`), que responde 200/206 con `Accept-Ranges: bytes` y permite *seek* y
   transcodificación directa.
@@ -149,7 +163,8 @@ El botón **Ejecutar ahora** guarda la configuración y lanza la tarea sin esper
 3. En **Panel → Bibliotecas → 3Cat**, **desactiva los metadatos en línea**. La numeración que usa el
    plugin sale del título de 3Cat (`T22xC6`) y no coincide con la de TVDB ni con la de TMDb: si Jellyfin
    refresca contra esos proveedores, los títulos, las sinopsis y los números de episodio que escribe el
-   plugin se sustituyen por otros.
+   plugin se sustituyen por otros. La 1.6.0.0 descarga el dataset de identificadores pero sigue numerando
+   con 3Cat, así que esta recomendación no cambia todavía.
 4. Lanza **Actualizar 3Cat** (o espera al siguiente ciclo) y refresca la biblioteca. La biblioteca se
    deja con monitorización en tiempo real activada, así que los `.strm` nuevos aparecen solos.
 
@@ -190,6 +205,46 @@ El botón **Ejecutar ahora** guarda la configuración y lanza la tarea sin esper
 - Si dos emisiones acaban con el mismo nombre de archivo, la segunda se escribe con el sufijo ` [2]`
   para que Jellyfin no las funda en un solo episodio.
 - Los subtítulos se deduplican por idioma: nunca se escribe dos veces el mismo `.srt`.
+
+## Identificadores cruzados (dataset)
+
+El catálogo de 3Cat identifica cada programa con un `programatv_id` que solo significa algo dentro de 3Cat,
+y los proveedores de metadata de Jellyfin (TheMovieDb, TheTVDB, OMDb) trabajan con los suyos. La traducción
+entre los dos —una línea JSON por programa con sus identificadores de **Wikidata**, **IMDb**, **TMDB** y
+**TVDB**— vive en su propio repositorio,
+[**open-tv-ids**](https://github.com/Lowitle/open-tv-ids): es un dataset, no una parte del plugin, y su
+refresco no debería depender de la versión que tenga instalada un cliente.
+
+```powershell
+dotnet run --project tools/CatalogDump     # volcado del catálogo a CSV: la entrada del dataset
+```
+
+```json
+{"id":"3cat:73476","emitter":"3cat","emitterId":"73476","kind":"anime","title":"Bola de Drac Súper","originalTitle":"Dragon Ball Super","ids":{"wikidata":"Q19839121","imdb":"tt4644488","tmdb":"62715","tvdb":"295068"},"match":{"method":"wikidata","confidence":0.9,"verified":false}}
+```
+
+- El plugin solo aporta el volcado: `CatalogDump` escribe `catalogo-3cat-programas.csv` con los ids y los
+  títulos que usa la biblioteca, y ese fichero es lo que consume el repositorio del dataset
+  (`input/3cat.csv`), donde se cruza con Wikidata.
+- El esquema de cada línea y la cobertura del último volcado están en ese repositorio
+  (`schema/series.schema.json`, `report/3cat/cobertura.md`).
+- Solo se publica desde 0,90 de confianza; lo dudoso queda en `report/3cat/revision.csv` y se corrige a
+  mano en `overrides/3cat.json`, que manda sobre el matcher.
+- Los identificadores vienen de Wikidata (CC0), leída a través de los artículos de Wikipedia: el dataset no
+  redistribuye ni el catálogo ni el texto de los artículos.
+- Los tres ids son los `uniqueid` que necesita el `tvshow.nfo` para que Jellyfin descargue carátulas y
+  sinopsis con sus proveedores nativos. Desde la 1.6.0.0 el plugin descarga y cachea el dataset en su
+  carpeta de datos (en la tarea de refresco, o con el botón **Actualizar dataset ahora** de la página),
+  muestra cuántas identidades hay y cuántos de los programas configurados tienen id, y el `tvshow.nfo`
+  sabe escribir `tmdb` y `tvdb`. Desde la 1.7.0.0 el id deja de ser decorativo: con la fuente `TMDB` el
+  plugin escribe la numeración de TMDB en los ficheros, así que el id que viaja en el `.nfo` y la
+  numeración de los episodios son los mismos. Con la fuente por defecto —3Cat— no cambia nada: el
+  `tvshow.nfo` sigue escribiendo solo `threecat` y ninguna serie se renumera.
+- La clave de TMDB es del usuario y se guarda en la configuración del plugin (nunca en el registro): la
+  página acepta tanto una clave v3 como un token de lectura v4 y los distingue por su forma. Sin clave,
+  las series se siguen numerando con 3Cat.
+- Si la descarga falla, se usa la copia anterior (o ninguna) y la sincronización continúa igual: el
+  dataset nunca bloquea una actualización.
 
 ## Compilar y publicar
 
@@ -237,7 +292,12 @@ Jellyfin.Plugin.ThreeCat/
 ├── ThreeCat/                            # cliente HTTP, modelos JSON, convertidores, VTT → SRT
 ├── Plugin.cs · PluginServiceRegistrator.cs · ThreeCatTriggerScheduler.cs
 Jellyfin.Plugin.ThreeCat.Tests/          # xUnit: sincronización, .nfo, .strm, client, convertidores
+tools/CatalogDump/                       # volcado del catálogo de 3Cat a CSV (entrada del dataset)
 ```
+
+El dataset de identificadores cruzados y su constructor (`IdsBuilder`) están en un repositorio aparte,
+[open-tv-ids](https://github.com/Lowitle/open-tv-ids): este repositorio solo produce el volcado que lo
+alimenta.
 
 ## Licencia
 

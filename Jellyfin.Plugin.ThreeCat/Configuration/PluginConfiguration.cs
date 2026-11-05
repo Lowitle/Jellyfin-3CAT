@@ -1,3 +1,5 @@
+using Jellyfin.Plugin.ThreeCat.Providers;
+using Jellyfin.Plugin.ThreeCat.Sync;
 using MediaBrowser.Model.Plugins;
 
 namespace Jellyfin.Plugin.ThreeCat.Configuration;
@@ -17,6 +19,30 @@ public class ThreeCatProgramReference
     /// Gets or sets the cached program title (optional, filled in by the refresh task).
     /// </summary>
     public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the metadata source of this program, which overrides
+    /// <see cref="PluginConfiguration.MetadataSource"/> when it has a value.
+    /// </summary>
+    /// <remarks>
+    /// <c>null</c> means «use the global source». The ids below can be typed by hand for the programs the
+    /// identity dataset does not resolve yet, and they take precedence over the dataset.
+    /// </remarks>
+    public MetadataSource? Override { get; set; }
+
+    /// <summary>
+    /// Gets or sets the TMDB id of the program typed by the user (optional).
+    /// </summary>
+    /// <remarks>
+    /// It is never validated against the network: it is a decision of the user and it wins over the
+    /// identity dataset, which is how a wrong or missing id is corrected from the configuration page.
+    /// </remarks>
+    public string? TmdbId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the TVDB id of the program typed by the user (optional).
+    /// </summary>
+    public string? TvdbId { get; set; }
 
     /// <summary>
     /// Gets or sets the folder of a second library the program is mirrored to, on top of the destination
@@ -47,6 +73,17 @@ public class ThreeCatProgramReference
     /// series is renamed.
     /// </remarks>
     public string WrittenMirror { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the source the last run numbered this program with (cache, filled in by the refresh task).
+    /// </summary>
+    /// <remarks>
+    /// It is what tells the next run that the files of the folder carry the numbering of another source and
+    /// have to be rewritten — after deleting the folder, which is only done when it is a folder of this
+    /// plugin for this program. <c>null</c> means «the run has not written this program yet», so a fresh
+    /// installation never deletes anything.
+    /// </remarks>
+    public MetadataSource? WrittenSource { get; set; }
 }
 
 /// <summary>
@@ -59,10 +96,14 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     /// <remarks>
     /// Version 2 dropped the subtitle language picker: every track published by 3Cat is downloaded now,
-    /// so <c>SubtitleLanguages</c> and <c>DownloadAllSubtitleLanguages</c> no longer exist. The XML
-    /// serializer ignores the elements of a configuration written by an older build.
+    /// so <c>SubtitleLanguages</c> and <c>DownloadAllSubtitleLanguages</c> no longer exist. Version 3 adds
+    /// the metadata source (<see cref="MetadataSource"/>, the dataset URL, the manual ids of a program and
+    /// the TMDB key and language it is read with) and the source each program was written with; its
+    /// defaults keep the behaviour of version 2 —3Cat numbering and the plugin's own metadata— so the
+    /// migration is only a version stamp. The XML serializer ignores the elements of a configuration
+    /// written by an older build.
     /// </remarks>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>
     /// Version of the file naming scheme written by this build.
@@ -91,6 +132,10 @@ public class PluginConfiguration : BasePluginConfiguration
         ClassifyPrograms = true;
         SeparateAnime = true;
         SeparateChildren = true;
+        MetadataSource = MetadataSource.ThreeCat;
+        OpenTvIdsUrl = OpenTvIdsClient.DefaultUrl;
+        TmdbApiKey = string.Empty;
+        TmdbLanguage = TmdbClient.DefaultLanguage;
     }
 
     /// <summary>
@@ -124,6 +169,50 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the refresh interval, in hours.
     /// </summary>
     public int RefreshIntervalHours { get; set; }
+
+    /// <summary>
+    /// Gets or sets the metadata source used by the programs that do not override it.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Configuration.MetadataSource.ThreeCat"/> is the default and the only one that works
+    /// without the identity dataset. With <see cref="Configuration.MetadataSource.Tmdb"/> or
+    /// <see cref="Configuration.MetadataSource.Tvdb"/> the plugin writes the provider id in the
+    /// <c>tvshow.nfo</c> so Jellyfin can fetch the series sheet, and numbers the episodes as the provider
+    /// does; a program the dataset does not resolve keeps the numbering of 3Cat and no provider id is
+    /// written.
+    /// </remarks>
+    public MetadataSource MetadataSource { get; set; }
+
+    /// <summary>
+    /// Gets or sets the URL of the identity dataset.
+    /// </summary>
+    /// <remarks>
+    /// It is <see cref="OpenTvIdsClient.DefaultUrl"/> unless the user points the plugin at a fork or a
+    /// local copy. The dataset is downloaded in the refresh task and cached in the data folder of the
+    /// plugin; a failed download keeps the previous copy and never aborts the synchronization.
+    /// </remarks>
+    public string OpenTvIdsUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the TMDB key the plugin reads the episodes of a series with.
+    /// </summary>
+    /// <remarks>
+    /// It is a secret of the user: it is never written to the log and it is only sent to TMDB. Both forms the
+    /// service accepts are valid — a v3 key (sent as the <c>api_key</c> parameter) and a v4 read token (sent
+    /// as a bearer token), and the plugin tells them apart by their shape. Without a key, a program whose
+    /// source is TMDB keeps the numbering of 3Cat, which is the default state of the plugin.
+    /// </remarks>
+    public string TmdbApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the language the episode titles are read from TMDB with.
+    /// </summary>
+    /// <remarks>
+    /// It only affects the titles, never the matching, which goes by air date. Most of the catalog of 3Cat
+    /// has no Catalan sheet in TMDB, so <see cref="Providers.TmdbClient.DefaultLanguage"/> is the default
+    /// that returns something.
+    /// </remarks>
+    public string TmdbLanguage { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether .nfo files are written.

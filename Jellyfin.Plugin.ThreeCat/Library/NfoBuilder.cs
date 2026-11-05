@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Xml.Linq;
+using Jellyfin.Plugin.ThreeCat.Configuration;
 
 namespace Jellyfin.Plugin.ThreeCat.Library;
 
@@ -20,6 +21,12 @@ internal static class NfoBuilder
     /// title or the plot written here. The original title is only written when 3Cat publishes one
     /// that differs from the Catalan title, so a library with the local metadata provider still
     /// shows «Dragon Ball» as the original title of «Bola de Drac».
+    /// <para>
+    /// The <c>uniqueid</c> matrix follows the numbering of the episodes: the <c>threecat</c> id is always
+    /// present and default; a <c>tmdb</c> or <c>tvdb</c> id is added only when
+    /// <see cref="LibrarySeries.NumberingSource"/> is that provider (and the id exists); the <c>imdb</c>
+    /// id is written last. With the default source the document is byte for byte the one 1.5.0.0 wrote.
+    /// </para>
     /// </remarks>
     internal static string BuildSeries(LibrarySeries series)
     {
@@ -60,7 +67,25 @@ internal static class NfoBuilder
         }
 
         root.Add(new XElement("tag", "3Cat"));
+
+        // The 3Cat id is always the default one: it is the key the plugin uses to recognise the series
+        // and to tell whether a folder is its own. The provider id is written only when the episodes were
+        // numbered by that provider, so Jellyfin never reads online episodes of a numbering the files do
+        // not follow; with the default source the document is the one 1.5.0.0 wrote.
         root.Add(new XElement("uniqueid", new XAttribute("type", "threecat"), new XAttribute("default", "true"), series.ProgramId));
+
+        var providerId = series.NumberingSource switch
+        {
+            MetadataSource.Tmdb => series.TmdbId,
+            MetadataSource.Tvdb => series.TvdbId,
+            _ => null
+        };
+
+        if (!string.IsNullOrWhiteSpace(providerId))
+        {
+            var type = series.NumberingSource == MetadataSource.Tmdb ? "tmdb" : "tvdb";
+            root.Add(new XElement("uniqueid", new XAttribute("type", type), providerId.Trim()));
+        }
 
         if (!string.IsNullOrWhiteSpace(series.ImdbId))
         {

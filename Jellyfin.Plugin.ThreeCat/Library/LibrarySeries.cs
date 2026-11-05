@@ -1,3 +1,5 @@
+using Jellyfin.Plugin.ThreeCat.Configuration;
+
 namespace Jellyfin.Plugin.ThreeCat.Library;
 
 /// <summary>
@@ -41,6 +43,31 @@ public sealed class LibrarySeries
     /// Gets or sets the IMDb id, when 3Cat publishes one.
     /// </summary>
     public string? ImdbId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the TMDB id of the series, when the identity dataset (or the user) resolves one.
+    /// </summary>
+    /// <remarks>
+    /// It is only written to the <c>tvshow.nfo</c> when <see cref="NumberingSource"/> is
+    /// <see cref="MetadataSource.Tmdb"/>: a series numbered with 3Cat must not carry a provider id, or
+    /// Jellyfin would fetch the episodes of a numbering the files do not follow.
+    /// </remarks>
+    public string? TmdbId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the TVDB id of the series, when the identity dataset (or the user) resolves one.
+    /// </summary>
+    public string? TvdbId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the source the episodes were numbered with.
+    /// </summary>
+    /// <remarks>
+    /// It decides which <c>uniqueid</c> the <c>tvshow.nfo</c> carries, so the id written to disk always
+    /// matches the numbering of the files next to it. The default, <see cref="MetadataSource.ThreeCat"/>,
+    /// writes no provider id and keeps the output of 1.5.0.0 byte for byte.
+    /// </remarks>
+    public MetadataSource NumberingSource { get; set; }
 
     /// <summary>
     /// Gets or sets the production country ("ES").

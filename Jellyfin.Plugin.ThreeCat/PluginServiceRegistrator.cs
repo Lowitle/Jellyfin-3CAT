@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.ThreeCat.Providers;
 using Jellyfin.Plugin.ThreeCat.Sync;
 using Jellyfin.Plugin.ThreeCat.Tasks;
 using Jellyfin.Plugin.ThreeCat.ThreeCat;
@@ -22,6 +23,9 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
         serviceCollection.AddHttpClient<ThreeCatClient>(client => ConfigureClient(client, "https://api.3cat.cat/"));
+        serviceCollection.AddHttpClient<OpenTvIdsClient>(
+            client => ConfigureClient(client, "https://raw.githubusercontent.com/"));
+        serviceCollection.AddHttpClient<TmdbClient>(client => ConfigureClient(client, TmdbClient.BaseAddress));
 
         serviceCollection.AddSingleton<ThreeCatSyncService>();
         serviceCollection.AddSingleton<IScheduledTask, ThreeCatRefreshTask>();

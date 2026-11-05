@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using Jellyfin.Plugin.ThreeCat.Configuration;
 using Jellyfin.Plugin.ThreeCat.Library;
 using Xunit;
 
@@ -193,5 +194,111 @@ public class NfoBuilderTests
         var root = XDocument.Parse(NfoBuilder.BuildEpisode("Doraemon", episode)).Root!;
 
         Assert.Equal("2", root.Element("runtime")!.Value);
+    }
+
+    [Fact]
+    public void BuildSeries_WithTheDefaultSourceKeepsTheOutputOfThePreviousVersion()
+    {
+        var series = new LibrarySeries { Title = "Merlí", ProgramId = "42" };
+
+        // XElement indents with Environment.NewLine, so the comparison normalises it to keep the test
+        // stable on Windows and on the Linux of the CI.
+        var nfo = NfoBuilder.BuildSeries(series).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Equal(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            + "<tvshow>\n"
+            + "  <title>Merlí</title>\n"
+            + "  <sorttitle>Merlí</sorttitle>\n"
+            + "  <plot>Programas de Merlí en 3Cat.</plot>\n"
+            + "  <studio>3Cat</studio>\n"
+            + "  <tag>3Cat</tag>\n"
+            + "  <uniqueid type=\"threecat\" default=\"true\">42</uniqueid>\n"
+            + "</tvshow>\n",
+            nfo);
+    }
+
+    [Fact]
+    public void BuildSeries_WithTheDefaultSourceWritesNoProviderIdEvenWhenItHasOne()
+    {
+        var series = new LibrarySeries
+        {
+            Title = "Bola de Drac",
+            ProgramId = "73476",
+            TmdbId = "62715",
+            TvdbId = "295068"
+        };
+
+        var root = XDocument.Parse(NfoBuilder.BuildSeries(series)).Root!;
+
+        Assert.Equal(
+            ["threecat"],
+            root.Elements("uniqueid").Select(element => element.Attribute("type")!.Value));
+    }
+
+    [Fact]
+    public void BuildSeries_WritesTheTmdbIdWithTheTmdbSource()
+    {
+        var series = new LibrarySeries
+        {
+            Title = "Bola de Drac Súper",
+            ProgramId = "73476",
+            NumberingSource = MetadataSource.Tmdb,
+            TmdbId = " 62715 ",
+            TvdbId = "295068",
+            ImdbId = "tt4644488"
+        };
+
+        var ids = XDocument.Parse(NfoBuilder.BuildSeries(series))
+            .Root!
+            .Elements("uniqueid")
+            .ToList();
+
+        Assert.Equal(
+            ["threecat", "tmdb", "imdb"],
+            ids.Select(element => element.Attribute("type")!.Value));
+        Assert.Equal("true", ids[0].Attribute("default")!.Value);
+        Assert.Equal("62715", ids[1].Value);
+        Assert.Null(ids[1].Attribute("default"));
+        Assert.Equal("tt4644488", ids[2].Value);
+    }
+
+    [Fact]
+    public void BuildSeries_WritesTheTvdbIdWithTheTvdbSource()
+    {
+        var series = new LibrarySeries
+        {
+            Title = "Bola de Drac Súper",
+            ProgramId = "73476",
+            NumberingSource = MetadataSource.Tvdb,
+            TmdbId = "62715",
+            TvdbId = " 295068 "
+        };
+
+        var ids = XDocument.Parse(NfoBuilder.BuildSeries(series))
+            .Root!
+            .Elements("uniqueid")
+            .ToList();
+
+        Assert.Equal(["threecat", "tvdb"], ids.Select(element => element.Attribute("type")!.Value));
+        Assert.Equal("295068", ids[1].Value);
+    }
+
+    [Fact]
+    public void BuildSeries_WritesNoProviderIdWhenTheSelectedSourceHasNoId()
+    {
+        var series = new LibrarySeries
+        {
+            Title = "Merlí",
+            ProgramId = "42",
+            NumberingSource = MetadataSource.Tvdb,
+            TmdbId = "1234"
+        };
+
+        var root = XDocument.Parse(NfoBuilder.BuildSeries(series)).Root!;
+
+        Assert.Equal(
+            ["threecat"],
+            root.Elements("uniqueid").Select(element => element.Attribute("type")!.Value));
     }
 }

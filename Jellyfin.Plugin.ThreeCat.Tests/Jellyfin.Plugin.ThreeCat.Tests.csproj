@@ -18,6 +18,11 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <!-- The tests instantiate the plugin configuration and an IApplicationPaths double, so the Jellyfin
+         assemblies have to be present at run time, not only at compile time. The plugin excludes their
+         runtime assets on purpose (the .zip must not ship Jellyfin), which is why the reference is
+         repeated here with the default assets. -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.6" />
   </ItemGroup>
 
   <ItemGroup>

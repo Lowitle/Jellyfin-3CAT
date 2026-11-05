@@ -1,3 +1,5 @@
+using System.Xml.Linq;
+using Jellyfin.Plugin.ThreeCat.Configuration;
 using Jellyfin.Plugin.ThreeCat.Library;
 using Xunit;
 
@@ -243,6 +245,44 @@ public class StrmLibraryTests
         Assert.False(StrmLibrary.TryDeleteSeriesFolder(folder.Combine("Doraemon"), "119987484"));
         Assert.False(StrmLibrary.TryDeleteSeriesFolder(null, "119987484"));
         Assert.False(StrmLibrary.TryDeleteSeriesFolder(folder.Root, " "));
+    }
+
+    [Fact]
+    public void Write_WithTheDefaultSourceWritesNoProviderIdInTheTvshowNfo()
+    {
+        using var folder = new TempFolder();
+
+        StrmLibrary.Write(folder.Root, Series(), [Episode()], new LibraryWriteOptions());
+
+        var root = XDocument
+            .Parse(File.ReadAllText(Path.Combine(folder.Combine("Doraemon"), "tvshow.nfo")))
+            .Root!;
+
+        var uniqueId = root.Elements("uniqueid").Single();
+
+        Assert.Equal("threecat", uniqueId.Attribute("type")!.Value);
+        Assert.Equal("true", uniqueId.Attribute("default")!.Value);
+        Assert.Equal("119987484", uniqueId.Value);
+    }
+
+    [Fact]
+    public void Write_WithAnExternalSourceAddsTheProviderId()
+    {
+        using var folder = new TempFolder();
+        var series = Series();
+        series.NumberingSource = MetadataSource.Tmdb;
+        series.TmdbId = "62715";
+        series.ImdbId = "tt4644488";
+
+        StrmLibrary.Write(folder.Root, series, [Episode()], new LibraryWriteOptions());
+
+        var root = XDocument
+            .Parse(File.ReadAllText(Path.Combine(folder.Combine("Doraemon"), "tvshow.nfo")))
+            .Root!;
+
+        Assert.Equal(
+            ["threecat", "tmdb", "imdb"],
+            root.Elements("uniqueid").Select(element => element.Attribute("type")!.Value));
     }
 
     private static LibrarySeries Series() => new()

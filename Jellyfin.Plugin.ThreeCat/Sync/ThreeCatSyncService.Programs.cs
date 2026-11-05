@@ -13,6 +13,7 @@ public sealed partial class ThreeCatSyncService
     private async Task<int> SyncProgramAsync(
         PluginConfiguration configuration,
         ThreeCatProgramReference reference,
+        OpenTvIdsDataset dataset,
         Action<double> reportProgress,
         CancellationToken cancellationToken)
     {
@@ -98,10 +99,16 @@ public sealed partial class ThreeCatSyncService
 
         // The air order is what the specials and the programs without numbering are numbered with,
         // so the oldest video of a season keeps its number when 3Cat repeats one.
-        var slots = EpisodeNumbering.Assign(
-            ordered
-                .Select(video => FirstNonEmptyOrNull(video.Title, video.FriendlyName))
-                .ToList());
+        var numbering = await ResolveNumberingAsync(
+            configuration,
+            reference,
+            programId,
+            seriesTitle,
+            ordered,
+            dataset,
+            cancellationToken).ConfigureAwait(false);
+
+        var slots = numbering.Slots;
 
         var episodes = new List<LibraryEpisode>();
         var expired = new List<(int Season, int Episode, string Title)>();
@@ -198,6 +205,41 @@ public sealed partial class ThreeCatSyncService
             usable,
             cancellationToken).ConfigureAwait(false);
 
+        // Changing the source of a program rewrites its folder: the numbering travels inside the file name,
+        // so the files of the old numbering would stay next to the new ones. A folder written before
+        // 1.7.0.0 carries no source (the option did not exist), so asking for a provider numbering rebuilds
+        // it too: mixing both numberings in one folder is exactly what must not happen. The folder is only
+        // deleted when it holds nothing but files of this plugin and its tvshow.nfo names this program.
+        var previousSource = reference.WrittenSource;
+        var sourceChanged = previousSource is { } written
+            ? written != numbering.Source
+            : numbering.Source != MetadataSource.ThreeCat;
+
+        if (sourceChanged)
+        {
+            if (previousSource is { } previous)
+            {
+                _logger.LogInformation(
+                    "3Cat: «{Series}» cambia de la numeración {Previous} a {Current}; se reescribe su carpeta",
+                    seriesTitle,
+                    previous,
+                    numbering.Source);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "3Cat: «{Series}» se escribe con la numeración {Current}; se reescribe su carpeta",
+                    seriesTitle,
+                    numbering.Source);
+            }
+
+            DeleteForMigration(seriesPath, programId, seriesTitle);
+            if (mirrorPath is not null)
+            {
+                DeleteForMigration(mirrorPath, programId, seriesTitle);
+            }
+        }
+
         var options = new LibraryWriteOptions
         {
             WriteNfo = configuration.WriteNfo,
@@ -206,6 +248,17 @@ public sealed partial class ThreeCatSyncService
         };
 
         var series = BuildSeriesMetadata(programId, seriesTitle, classification, originalTitle);
+        series.TmdbId = numbering.TmdbId;
+        series.TvdbId = numbering.TvdbId;
+        series.NumberingSource = numbering.Source;
+
+        // The IMDb id only travels next to a provider numbering: with the source of 3Cat the tvshow.nfo has
+        // to stay exactly as it was in 1.5.0.0, where no provider uniqueid was ever written.
+        if (numbering.Source != MetadataSource.ThreeCat)
+        {
+            series.ImdbId = numbering.ImdbId;
+        }
+
         var result = StrmLibrary.Write(root, series, episodes, options);
         var program = FindProgramNode(usable);
 
@@ -228,6 +281,9 @@ public sealed partial class ThreeCatSyncService
             _libraryMonitor.ReportFileSystemChanged(mirror.SeriesPath);
         }
 
+        // The source is recorded next to the folder, so the next run knows whether the numbering of the
+        // files still matches the configuration.
+        reference.WrittenSource = numbering.Source;
         RemoveMovedSeries(reference, programId, result.SeriesPath);
         RemoveMovedMirror(reference, programId, mirrorRoot is null ? null : mirror.SeriesPath);
 
@@ -253,6 +309,33 @@ public sealed partial class ThreeCatSyncService
             duplicates,
             result.FilesWritten,
             result.FilesRemoved + removedExpired);
+
+        // The report of the numbering: without it a change of numbering is indistinguishable from a bug.
+        if (numbering.Provider is { } provider)
+        {
+            _logger.LogInformation(
+                "3Cat: «{Series}» numerada con {Source} {Id}: {Matched} de {Assignable} vídeos emparejados "
+                + "({Date} por fecha, {Title} por título, {Order} por orden), {Specials} a la temporada 0, "
+                + "{Duplicates} duplicados ({Coverage:P0})",
+                seriesTitle,
+                numbering.Source,
+                numbering.TmdbId,
+                provider.Matched,
+                provider.Assignable,
+                provider.ByDate,
+                provider.ByTitle,
+                provider.ByOrder,
+                provider.Specials,
+                provider.Duplicates,
+                provider.Coverage);
+        }
+        else if (numbering.Note is { } note)
+        {
+            _logger.LogInformation(
+                "3Cat: «{Series}» se numera con 3Cat porque {Reason}",
+                seriesTitle,
+                note);
+        }
 
         return result.FilesWritten + mirror.FilesWritten;
     }

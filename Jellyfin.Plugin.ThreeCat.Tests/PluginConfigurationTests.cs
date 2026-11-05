@@ -1,0 +1,41 @@
+using Jellyfin.Plugin.ThreeCat.Configuration;
+using Jellyfin.Plugin.ThreeCat.Sync;
+using Xunit;
+
+namespace Jellyfin.Plugin.ThreeCat.Tests;
+
+/// <summary>
+/// Tests of the defaults of the configuration, which keep the behaviour of 1.5.0.0.
+/// </summary>
+public sealed class PluginConfigurationTests
+{
+    [Fact]
+    public void Defaults_KeepTheNumberingAndTheMetadataOf3Cat()
+    {
+        var configuration = new PluginConfiguration();
+
+        Assert.Equal(MetadataSource.ThreeCat, configuration.MetadataSource);
+        Assert.Equal(OpenTvIdsClient.DefaultUrl, configuration.OpenTvIdsUrl);
+        Assert.Equal(3, PluginConfiguration.CurrentVersion);
+
+        // Without a key and with a language, the plugin is in the state of a fresh installation: TMDB is
+        // never read until the user asks for it.
+        Assert.Equal(string.Empty, configuration.TmdbApiKey);
+        Assert.Equal(Providers.TmdbClient.DefaultLanguage, configuration.TmdbLanguage);
+        Assert.False(Providers.TmdbClient.IsConfigured(configuration.TmdbApiKey));
+    }
+
+    [Fact]
+    public void Reference_UsesTheGlobalSourceUntilItIsOverridden()
+    {
+        var reference = new ThreeCatProgramReference();
+
+        Assert.Null(reference.Override);
+        Assert.Null(reference.TmdbId);
+        Assert.Null(reference.TvdbId);
+
+        // The source the last run wrote is empty until a run reaches the program: a fresh installation
+        // must never delete a folder.
+        Assert.Null(reference.WrittenSource);
+    }
+}
