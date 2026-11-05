@@ -8,6 +8,14 @@
   "category": "General",
   "versions": [
     {
+      "version": "1.8.1.1",
+      "changelog": "3Cat 1.8.1.1",
+      "targetAbi": "10.11.0.0",
+      "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.8.1.1/threecat_1.8.1.1.zip",
+      "checksum": "6F70ED9A1BA1874B4032B329FC1FCB61",
+      "timestamp": "2026-11-05T19:38:40Z"
+    },
+    {
       "version": "1.8.1.0",
       "changelog": "El «capitol» de 3Cat pasa de pista a evidencia y el emparejamiento deja de necesitar anclas. Ese contador numera el programa entero, no la temporada: «El detectiu Conan» va del 1 al 1.206 sin un solo paso atrás (T1 acaba en 43 y T2 empieza en 44, T3 en 89 y, tras los 720 capítulos que 3Cat no aloja, T20 empieza en 857), así que el vídeo es el episodio que ocupa esa posición en la lista absoluta de TMDB. Antes se contaban vídeos en vez de leer números y, con los huecos del catálogo, el 857 se numeraba como el 136; además el relleno de las anclas se detenía en cada cambio de temporada y solo alcanzaba la temporada del ancla. Ahora una pasada propia respeta los huecos, el orden de publicación y los catálogos incompletos, y se desactiva sola cuando el contador no es del programa (si reinicia en cada tanda o va hacia atrás por una reemisión). Medido sobre el catálogo real de «El detectiu Conan»: 329 de 385 vídeos emparejados (85,5 %) con cero desviaciones frente al 0 % de la 1.8.0.0 sin anclas, y el 100 % si TMDB lista los 1.206 capítulos. Las anclas siguen, pero ahora solo calibran el desfase entre los dos contadores con una sola línea. La vista previa añade el contador «capitol» al resumen, marca la evidencia «capitol» en cada vídeo y avisa del desfase.",
       "targetAbi": "10.11.0.0",
