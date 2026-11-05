@@ -240,6 +240,16 @@ dotnet run --project tools/CatalogDump     # volcado del catálogo a CSV: la ent
   plugin escribe la numeración de TMDB en los ficheros, así que el id que viaja en el `.nfo` y la
   numeración de los episodios son los mismos. Con la fuente por defecto —3Cat— no cambia nada: el
   `tvshow.nfo` sigue escribiendo solo `threecat` y ninguna serie se renumera.
+- La vista previa del emparejamiento acepta el programa escrito como sea: su `programatv_id`, la URL de su
+  página (`https://www.3cat.cat/3cat/detectiu-conan/`), su `slug`, su título o el id de cualquiera de sus
+  vídeos, porque la URL y el título se resuelven contra el catálogo de programas que la página ya tiene en
+  memoria (el buscador de 3Cat publica el `slug` de cada programa junto a su id). El segundo campo es el id
+  de TMDB, o la URL de su ficha, y manda sobre el del dataset y sobre el de la tabla de programas, así que
+  sirve para probar una serie sin tocar su configuración. La respuesta es siempre una tabla con su mensaje
+  —también cuando no hay nada que emparejar— y, si la referencia encaja con varios programas, la página los
+  ofrece para elegir uno con un clic. Desde la 1.7.1.0 el mensaje dice qué falta cuando falta algo: el id
+  de TMDB, la clave de la API o la respuesta de TMDB.
+
 - La clave de TMDB es del usuario y se guarda en la configuración del plugin (nunca en el registro): la
   página acepta tanto una clave v3 como un token de lectura v4 y los distingue por su forma. Sin clave,
   las series se siguen numerando con 3Cat.

@@ -419,16 +419,27 @@
 
                     <div class="threeCatActions">
                         <input is="emby-input" type="text" id="ThreeCatMappingProgram"
-                               placeholder="119987484 o https://www.3cat.cat/3cat/..." />
+                               placeholder="120086583, https://www.3cat.cat/3cat/… o El detectiu Conan" />
+                        <input is="emby-input" type="text" id="ThreeCatMappingTmdb"
+                               placeholder="Id o URL de TMDB: 30983" />
                         <button is="emby-button" type="button" id="ThreeCatMappingRun" class="raised">
                             <span>Ver el emparejamiento con TMDB</span>
                         </button>
+                    </div>
+
+                    <div class="fieldDescription">
+                        El primer campo es el programa de 3Cat: su id, la URL de su página, su título o el id
+                        de cualquiera de sus vídeos. El segundo es el id de la serie en TMDB (o la URL de su
+                        ficha) y manda sobre el del dataset y sobre el de la tabla de programas.
                     </div>
 
                     <div class="fieldDescription" id="ThreeCatMappingStatus">
                         Muestra la tabla «vídeo de 3Cat ↔ episodio de TMDB» sin escribir ningún fichero. Es la
                         comprobación que hay que hacer antes de cambiar la fuente de una serie.
                     </div>
+
+                    <div class="threeCatActions" id="ThreeCatMappingCandidates"></div>
+                    <div class="fieldDescription" id="ThreeCatMappingSummary" style="display: none"></div>
 
                     <div class="threeCatTableWrap" id="ThreeCatMappingWrap" style="display: none">
                         <table class="threeCatTable">
@@ -705,34 +716,86 @@
             // design asks for before renaming a whole series, and the page is where it belongs because the
             // user is the one who has the TMDB key.
             function threeCatRunMapping() {
-                var programId = document.querySelector('#ThreeCatMappingProgram').value.trim();
+                var input = document.querySelector('#ThreeCatMappingProgram');
+                var programId = input.value.trim();
+                var tmdbId = document.querySelector('#ThreeCatMappingTmdb').value.trim();
                 var status = document.querySelector('#ThreeCatMappingStatus');
+                var candidates = document.querySelector('#ThreeCatMappingCandidates');
+                var summary = document.querySelector('#ThreeCatMappingSummary');
                 var wrap = document.querySelector('#ThreeCatMappingWrap');
                 var body = document.querySelector('#ThreeCatMappingBody');
 
-                if (!programId) {
-                    status.textContent = 'Escribe el id del programa o pega la URL de cualquiera de sus vídeos.';
-                    return;
-                }
-
-                status.textContent = 'Leyendo el catálogo y TMDB…';
+                candidates.innerHTML = '';
+                summary.textContent = '';
+                summary.style.display = 'none';
                 wrap.style.display = 'none';
                 body.innerHTML = '';
 
-                ApiClient.getJSON(threeCatUrl('Mapping', { programId: programId, source: 'tmdb' }))
-                    .then(function (report) {
-                        status.textContent = (report.title || report.programId) + ': ' + (report.message || '');
+                if (!programId) {
+                    status.textContent = 'Escribe el programa de 3Cat: su id, la URL de su página o su título.';
+                    return;
+                }
 
-                        (report.rows || []).forEach(function (row) {
-                            body.appendChild(threeCatMappingRow(row));
-                        });
+                status.textContent = 'Leyendo el catálogo de 3Cat y TMDB…';
 
-                        wrap.style.display = (report.rows || []).length > 0 ? '' : 'none';
-                    }, function (reason) {
-                        status.textContent = threeCatErrorMessage(
-                            reason,
-                            'No se pudo leer el emparejamiento. Comprueba el id y la clave de TMDB.');
+                ApiClient.getJSON(threeCatUrl('Mapping', {
+                    programId: programId,
+                    tmdbId: tmdbId,
+                    source: 'tmdb'
+                })).then(function (report) {
+                    status.textContent = (report.title || report.programId) + ': ' + (report.message || '');
+                    threeCatRenderCandidates(candidates, input, report.candidates || []);
+
+                    summary.textContent = threeCatMappingSummary(report);
+                    summary.style.display = summary.textContent ? '' : 'none';
+
+                    var rows = report.rows || [];
+                    rows.forEach(function (row) {
+                        body.appendChild(threeCatMappingRow(row));
                     });
+
+                    wrap.style.display = rows.length > 0 ? '' : 'none';
+                }, function (reason) {
+                    status.textContent = threeCatErrorMessage(
+                        reason,
+                        'No se pudo leer el emparejamiento. Comprueba el programa y la clave de TMDB.');
+                });
+            }
+
+            // A reference can name several programs («Conan»), so the page offers them instead of failing:
+            // a click writes the id in the field and asks for the preview again.
+            function threeCatRenderCandidates(container, input, candidates) {
+                candidates.forEach(function (candidate) {
+                    var button = threeCatElement(
+                        'button',
+                        'emby-button raised',
+                        candidate.title + ' (' + candidate.id + ')');
+
+                    button.type = 'button';
+                    button.addEventListener('click', function () {
+                        input.value = candidate.id;
+                        threeCatRunMapping();
+                    });
+                    container.appendChild(button);
+                });
+            }
+
+            // The counters the message does not spell out: how many videos were read, how many were paired
+            // and with which evidence, which is what tells a good mapping from a lucky one.
+            function threeCatMappingSummary(report) {
+                if (!report || !report.videos) {
+                    return '';
+                }
+
+                return 'Vídeos: ' + report.videos
+                    + ' · Emparejados: ' + (report.matched || 0)
+                    + ' (fecha ' + (report.byDate || 0)
+                    + ' · título ' + (report.byTitle || 0)
+                    + ' · orden ' + (report.byOrder || 0) + ')'
+                    + ' · Temporada 0: ' + (report.specials || 0)
+                    + ' · Duplicados: ' + (report.duplicates || 0)
+                    + ' · Cobertura: ' + Math.round((report.coverage || 0) * 100) + ' %'
+                    + ' · ' + (report.usesThreeCat ? 'Se numeraría con 3Cat' : 'Se numeraría con TMDB');
             }
 
             function threeCatUrl(method, query) {
@@ -2134,6 +2197,13 @@
                 document.querySelector('#ThreeCatMappingRun').addEventListener('click', threeCatRunMapping);
 
                 document.querySelector('#ThreeCatMappingProgram').addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        threeCatRunMapping();
+                    }
+                });
+
+                document.querySelector('#ThreeCatMappingTmdb').addEventListener('keydown', function (event) {
                     if (event.key === 'Enter') {
                         event.preventDefault();
                         threeCatRunMapping();

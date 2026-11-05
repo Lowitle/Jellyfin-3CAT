@@ -377,66 +377,55 @@ public sealed class ThreeCatPlayController : ControllerBase
     /// season, the episode and the evidence that paired it. It reads the catalog, the dataset and TMDB the
     /// same way the refresh task does, so what it shows is what the task would write.
     /// </remarks>
-    /// <param name="programId">Program id or URL of any of its videos.</param>
+    /// <param name="programId">
+    /// Program reference: its id, the URL of its page, its title, or the id or the URL of any of its videos.
+    /// </param>
+    /// <param name="tmdbId">Id of the series in TMDB (or the URL of its page), when the user knows it.</param>
     /// <param name="source">Source to try (<c>tmdb</c>); the configured one when empty.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The mapping table, or 404 when the program publishes no videos.</returns>
+    /// <returns>
+    /// The mapping table, with the message that explains why it is empty when it is. The endpoint answers
+    /// a table even when the program cannot be read: an empty page is the failure nobody can diagnose.
+    /// </returns>
     [HttpGet("Mapping")]
     public async Task<ActionResult<ThreeCatMappingReport>> MappingAsync(
         [FromQuery] string? programId,
+        [FromQuery] string? tmdbId,
         [FromQuery] string? source,
         CancellationToken cancellationToken)
     {
-        var reference = ThreeCatClient.NormalizeReference(programId);
-        if (reference.Length == 0)
+        var typed = programId?.Trim() ?? string.Empty;
+        if (typed.Length == 0)
         {
-            return BadRequest("Escribe el id del programa o pega la URL de cualquiera de sus vídeos.");
+            return BadRequest("Escribe el id del programa, la URL de su página, su título o el id de un vídeo.");
         }
 
         var configuration = Plugin.Instance?.Configuration ?? new PluginConfiguration();
-        var page = await _client
-            .GetProgramVideosAsync(reference, maxItems: 0, cancellationToken)
-            .ConfigureAwait(false);
+        var lookup = await LookupAsync(typed, cancellationToken).ConfigureAwait(false);
 
-        var resolved = reference;
-        if (page.Items.Count == 0)
-        {
-            var media = await _client.GetMediaAsync(reference, cancellationToken).ConfigureAwait(false);
-            resolved = media?.Info?.ProgramId ?? reference;
-
-            if (!string.Equals(resolved, reference, StringComparison.Ordinal))
-            {
-                page = await _client
-                    .GetProgramVideosAsync(resolved, maxItems: 0, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-        }
-
-        var usable = page.Items.Where(video => !string.IsNullOrWhiteSpace(video.Id)).ToList();
-        if (usable.Count == 0)
-        {
-            return NotFound($"El programa {resolved} no publica ningún vídeo disponible ahora mismo.");
-        }
-
-        var ordered = usable
+        var ordered = lookup.Videos
+            .Where(video => !string.IsNullOrWhiteSpace(video.Id))
             .OrderBy(video => video.Broadcast ?? video.Published ?? DateTimeOffset.MinValue)
             .ThenBy(video => video.Id, StringComparer.Ordinal)
             .ToList();
 
-        var title = PickTitle(resolved, ordered);
-        var dataset = await _dataset
-            .LoadAsync(configuration.OpenTvIdsUrl, forceRefresh: false, cancellationToken)
-            .ConfigureAwait(false);
+        var resolved = lookup.ProgramId ?? typed;
 
-        var ids = dataset.Find(resolved)?.Ids;
+        var title = FirstNonEmpty(
+            lookup.Title,
+            ordered.Count > 0 ? PickTitle(resolved, ordered) : null,
+            resolved);
+
         var program = (configuration.Programs ?? []).FirstOrDefault(
             candidate => string.Equals(
                 ThreeCatClient.NormalizeReference(candidate.Id),
                 resolved,
                 StringComparison.Ordinal));
 
-        var tmdbId = Resolve(program?.TmdbId, ids?.Tmdb);
         var preferred = ParseSource(source) ?? program?.Override ?? configuration.MetadataSource;
+        var knownTmdb = Resolve(
+            ProgramReference.TmdbId(tmdbId),
+            ProgramReference.TmdbId(program?.TmdbId));
 
         var videos = ordered
             .Select(video => new ProviderVideo(
@@ -447,44 +436,60 @@ public sealed class ThreeCatPlayController : ControllerBase
 
         ProviderNumberingResult? result = null;
         string? externalId = null;
-        string message;
+        var message = lookup.Message ?? string.Empty;
 
-        if (preferred != MetadataSource.Tmdb)
+        if (message.Length == 0)
         {
-            message = "La vista previa del emparejamiento solo está disponible para la fuente TMDB.";
-        }
-        else if (tmdbId is null)
-        {
-            message = "El dataset no resuelve un id de TMDB para este programa y no hay ninguno escrito a mano.";
-        }
-        else
-        {
-            externalId = tmdbId;
-
-            if (!TmdbClient.IsConfigured(configuration.TmdbApiKey))
+            if (preferred != MetadataSource.Tmdb)
             {
-                message = "No hay clave de TMDB configurada: las series se numeran con 3Cat.";
+                message = "La vista previa del emparejamiento solo está disponible para la fuente TMDB.";
             }
             else
             {
-                var episodes = await _tmdb
-                    .GetEpisodesAsync(
-                        tmdbId,
-                        configuration.TmdbApiKey,
-                        configuration.TmdbLanguage,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (episodes.Count == 0)
+                if (knownTmdb is null)
                 {
-                    message = $"TMDB no publica los episodios de la serie {tmdbId}.";
+                    var dataset = await _dataset
+                        .LoadAsync(configuration.OpenTvIdsUrl, forceRefresh: false, cancellationToken)
+                        .ConfigureAwait(false);
+
+                    knownTmdb = Resolve(null, dataset.Find(resolved)?.Ids?.Tmdb);
+                }
+
+                if (knownTmdb is null)
+                {
+                    message = "No hay id de TMDB para este programa: escríbelo en el segundo campo o en la"
+                        + " columna TMDB de la tabla de programas.";
+                }
+                else if (!TmdbClient.IsConfigured(configuration.TmdbApiKey))
+                {
+                    externalId = knownTmdb;
+                    message = "No hay clave de API de TMDB guardada: escríbela arriba, en «Clave de API de"
+                        + " TMDB», y guarda los ajustes.";
                 }
                 else
                 {
-                    result = ProviderNumbering.Assign(videos, episodes, title);
-                    message = result.UseThreeCat
-                        ? $"La cobertura es del {result.Coverage:P0}: la serie se numeraría con 3Cat."
-                        : $"La serie se numeraría con TMDB: {result.Matched} de {result.Assignable} vídeos emparejados.";
+                    externalId = knownTmdb;
+
+                    var episodes = await _tmdb
+                        .GetEpisodesAsync(
+                            knownTmdb,
+                            configuration.TmdbApiKey,
+                            configuration.TmdbLanguage,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+
+                    if (episodes.Count == 0)
+                    {
+                        message = $"TMDB no publica los episodios de la serie {knownTmdb}: comprueba que el id"
+                            + " es el de una serie y no el de una película.";
+                    }
+                    else
+                    {
+                        result = ProviderNumbering.Assign(videos, episodes, title);
+                        message = result.UseThreeCat
+                            ? $"La cobertura es del {result.Coverage:P0}: la serie se numeraría con 3Cat."
+                            : $"La serie se numeraría con TMDB: {result.Matched} de {result.Assignable} vídeos emparejados.";
+                    }
                 }
             }
         }
@@ -524,7 +529,111 @@ public sealed class ThreeCatPlayController : ControllerBase
             result?.Coverage ?? 0,
             result?.UseThreeCat ?? true,
             message,
-            rows));
+            rows,
+            lookup.Candidates.Select(match => new ThreeCatProgramCandidate(match.Id, match.Title)).ToList()));
+    }
+
+    /// <summary>
+    /// Resolves what the user typed in the preview of the mapping into a program of 3Cat.
+    /// </summary>
+    /// <param name="typed">Program id, URL of its page, slug, title, or id or URL of one of its videos.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    /// The program and its catalog, or the reason why it cannot be read and the programs the reference
+    /// could mean.
+    /// </returns>
+    /// <remarks>
+    /// A number is the id of a program or of one of its videos, which the catalog and the media endpoint
+    /// answer in two requests. Anything else (the URL of the program page, its slug or its title) is
+    /// resolved against the program catalog the configuration page already keeps in memory, because 3Cat
+    /// publishes no endpoint that maps a program URL to its <c>programatv_id</c>.
+    /// </remarks>
+    private async Task<ProgramLookup> LookupAsync(string typed, CancellationToken cancellationToken)
+    {
+        var reference = ThreeCatClient.NormalizeReference(typed);
+
+        if (ProgramReference.IsId(reference))
+        {
+            var page = await _client
+                .GetProgramVideosAsync(reference, maxItems: 0, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (page.Items.Count > 0)
+            {
+                return new ProgramLookup(reference, null, page.Items, null, []);
+            }
+
+            var media = await _client.GetMediaAsync(reference, cancellationToken).ConfigureAwait(false);
+            var programId = media?.Info?.ProgramId;
+
+            if (!string.IsNullOrWhiteSpace(programId)
+                && !string.Equals(programId, reference, StringComparison.Ordinal))
+            {
+                page = await _client
+                    .GetProgramVideosAsync(programId, maxItems: 0, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (page.Items.Count > 0)
+                {
+                    return new ProgramLookup(programId, null, page.Items, null, []);
+                }
+            }
+        }
+
+        var programs = await _client
+            .ListAllProgramsAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (programs.Count == 0)
+        {
+            return new ProgramLookup(
+                null,
+                null,
+                [],
+                "No se pudo leer el catálogo de programas de 3Cat: prueba con el id del programa.",
+                []);
+        }
+
+        var matches = ProgramReference.Match(programs, typed);
+        if (matches.Count == 0)
+        {
+            var hint = ProgramReference.TmdbId(typed) is { } id
+                ? $"«{typed}» parece un id de TMDB ({id}): el primer campo es el programa de 3Cat y el"
+                    + " segundo el id de TMDB."
+                : $"No encuentro «{typed}» en el catálogo de 3Cat: escribe el id del programa, la URL de su"
+                    + " página o su título como lo publica 3Cat.";
+
+            return new ProgramLookup(null, null, [], hint, []);
+        }
+
+        var best = matches[0];
+        if (matches.Count > 1 && matches[1].Score == best.Score)
+        {
+            return new ProgramLookup(
+                null,
+                null,
+                [],
+                $"«{typed}» encaja con {matches.Count} programas del catálogo: elige uno y vuelve a pedir la"
+                    + " vista previa.",
+                matches);
+        }
+
+        var catalog = await _client
+            .GetProgramVideosAsync(best.Id, maxItems: 0, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (catalog.Items.Count == 0)
+        {
+            return new ProgramLookup(
+                best.Id,
+                best.Title,
+                [],
+                $"«{best.Title}» ({best.Id}) no publica ningún vídeo disponible ahora mismo: puede ser un"
+                    + " programa de radio o de la web.",
+                []);
+        }
+
+        return new ProgramLookup(best.Id, best.Title, catalog.Items, null, []);
     }
 
     /// <summary>
@@ -753,6 +862,9 @@ public sealed record ThreeCatMappingRow(
 /// </param>
 /// <param name="Message">Message shown to the user.</param>
 /// <param name="Rows">The table, one row per video.</param>
+/// <param name="Candidates">
+/// Programs the reference could mean when it is ambiguous, so the page can offer them instead of failing.
+/// </param>
 public sealed record ThreeCatMappingReport(
     string ProgramId,
     string Title,
@@ -768,4 +880,27 @@ public sealed record ThreeCatMappingReport(
     double Coverage,
     bool UsesThreeCat,
     string Message,
-    IReadOnlyList<ThreeCatMappingRow> Rows);
+    IReadOnlyList<ThreeCatMappingRow> Rows,
+    IReadOnlyList<ThreeCatProgramCandidate> Candidates);
+
+/// <summary>
+/// A program of 3Cat the reference of the preview could name.
+/// </summary>
+/// <param name="Id">Program id (<c>programatv_id</c>), the value the first field of the preview takes.</param>
+/// <param name="Title">Title of the program as the catalog publishes it.</param>
+public sealed record ThreeCatProgramCandidate(string Id, string Title);
+
+/// <summary>
+/// Program of 3Cat resolved from what the user typed in the preview of the mapping.
+/// </summary>
+/// <param name="ProgramId">Program id (<c>programatv_id</c>), or <c>null</c> when it cannot be resolved.</param>
+/// <param name="Title">Title of the program as the catalog publishes it, or <c>null</c>.</param>
+/// <param name="Videos">Catalog of the program, empty when it cannot be read.</param>
+/// <param name="Message">Why the reference cannot be read, or <c>null</c> when it was resolved.</param>
+/// <param name="Candidates">Programs the reference could mean, when it is ambiguous.</param>
+internal sealed record ProgramLookup(
+    string? ProgramId,
+    string? Title,
+    IReadOnlyList<ThreeCatVideo> Videos,
+    string? Message,
+    IReadOnlyList<ProgramMatch> Candidates);

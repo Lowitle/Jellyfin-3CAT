@@ -1,7 +1,7 @@
 ---
 name: "3Cat"
 guid: "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-version: "1.7.0.0"
+version: "1.7.1.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Crea una biblioteca de series con el catálogo a la carta de 3Cat (.strm + metadatos + subtítulos)."
@@ -16,6 +16,21 @@ owner: "Lowitle"
 artifacts:
   - "Jellyfin.Plugin.ThreeCat.dll"
 changelog: >
+  1.7.1.0: la vista previa del emparejamiento acepta el programa escrito como sea: el «programatv_id», la
+  URL de su página («https://www.3cat.cat/3cat/detectiu-conan/»), su «slug», su título («El detectiu
+  Conan») o el id de cualquiera de sus vídeos, y estrena un segundo campo para el id de TMDB —o la URL de
+  su ficha— que manda sobre el del dataset y sobre el de la tabla de programas. Antes solo entendía el id
+  de un programa o la URL de un vídeo, y un id o una URL de TMDB se leían como un programa de 3Cat que no
+  existía: 3Cat respondía 404 y la vista previa se quedaba sin tabla ni explicación. Ahora la referencia
+  se resuelve contra el catálogo de programas que la página ya tiene en memoria —el buscador de 3Cat
+  publica el «slug» de cada programa junto a su id, así que la URL y el título no cuestan ninguna petición
+  extra—, la respuesta es siempre una tabla con su mensaje, también cuando no hay nada que emparejar, y la
+  página enseña los contadores del emparejamiento (vídeos, emparejados por fecha, por título y por orden,
+  temporada 0, duplicados y cobertura) para saber si una serie se renumeraría con TMDB o se quedaría con
+  3Cat. Si la referencia encaja con varios programas («Conan» es «El detectiu Conan» y «Conan, el nen del
+  futur»), la página los ofrece para elegir uno con un clic en vez de fallar, y el mensaje dice qué falta
+  cuando falta algo: el id de TMDB, la clave de la API o la respuesta de TMDB. Corrige además un fallo del
+  enlace de la fuente: un programa sin catálogo de vídeos ya no deja la vista previa en blanco.
   1.7.0.0: la numeración de los episodios deja de ser la única posible. Cada programa puede numerarse
   con el catálogo de 3Cat (lo de siempre, sigue siendo el valor por defecto) o con TMDB, y con TMDB el
   plugin empareja cada vídeo con su episodio por fecha de emisión y por título —la fecha manda, el título
