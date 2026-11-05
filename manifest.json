@@ -9,7 +9,7 @@
   "versions": [
     {
       "version": "1.7.1.1",
-      "changelog": "3Cat 1.7.1.1",
+      "changelog": "La vista previa del emparejamiento vuelve a enseñar la tabla y el mensaje: la página leía las respuestas del plugin en minúscula inicial («message», «title», «rows») y el servidor las publica en mayúscula («Message», «Title», «Rows»), así que probar una serie solo contestaba «undefined:», sin tabla, sin contadores y sin el motivo. Es lo que quedaba por arreglar de la 1.7.1.0, que ya resolvía el programa escrito como sea —el «programatv_id», la URL de su página, su «slug», su título o el id de cualquiera de sus vídeos— y aceptaba el id de TMDB (o la URL de su ficha) en su propio campo, que manda sobre el del dataset y sobre el de la tabla de programas. Ahora la página lee los campos con el mismo ayudante que el resto, la cobertura se calcula como fracción (antes siempre decía «Cobertura: 0 %») y un test nuevo lee la página incrustada en el propio ensamblado y falla si un campo del servidor se lee sin ese ayudante.",
       "targetAbi": "10.11.0.0",
       "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.7.1.1/threecat_1.7.1.1.zip",
       "checksum": "08A4DD79E423C7BA434A29977271BE83",
