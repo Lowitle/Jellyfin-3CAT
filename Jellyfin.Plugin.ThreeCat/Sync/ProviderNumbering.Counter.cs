@@ -120,6 +120,128 @@ public static partial class ProviderNumbering
     }
 
     /// <summary>
+    /// Episodes a video may fall away from the one its counter announces and still be rescued.
+    /// </summary>
+    /// <remarks>
+    /// The rescue only claims an episode no other video took and only when it is right next to the one the
+    /// counter announces, which is what a catalog dated out of order leaves behind: «Detectiu Conan» dates the
+    /// chapter 40 after the 41, the alignment cannot walk back and the video would be written as a special even
+    /// though the episode it belongs to is still free.
+    /// </remarks>
+    internal const int OrphanReach = 2;
+
+    /// <summary>
+    /// Pairs the videos that no pass could place with the free episode closest to the one their counter announces.
+    /// </summary>
+    /// <param name="videos">Videos of 3Cat.</param>
+    /// <param name="pool">Episodes of the provider that may be assigned.</param>
+    /// <param name="used">Episodes already assigned.</param>
+    /// <param name="assigned">Episode assigned to every video, updated in place; -1 when it has none.</param>
+    /// <param name="duplicates">Videos 3Cat publishes twice, which no pass may claim.</param>
+    /// <param name="methods">Evidence of every video, updated in place.</param>
+    /// <param name="shifts">Shift of the counter of every video, read from the titles.</param>
+    /// <param name="shifted">Whether the alignment applied the shifts of the titles.</param>
+    /// <param name="offset">Difference between the position of the counter and the position of the episode.</param>
+    /// <param name="seriesTitle">Title of the series, to compare the titles without it.</param>
+    /// <param name="take">Assigns an episode to a video.</param>
+    /// <returns>The number of videos paired by this pass.</returns>
+    /// <remarks>
+    /// It never takes an episode another video owns: a video that 3Cat publishes and the provider does not list
+    /// still ends in the season of specials, because the counter it announces falls outside the episodes of the
+    /// provider and there is nothing next to it to rescue. Reading the counter as a position instead of counting
+    /// the videos is what keeps its holes —from the 135 the catalog jumps to the 857— out of the way.
+    /// </remarks>
+    private static int RescueOrphans(
+        IReadOnlyList<ProviderVideo> videos,
+        List<ProviderEpisode> pool,
+        bool[] used,
+        int[] assigned,
+        bool[] duplicates,
+        ProviderMatch[] methods,
+        int[] shifts,
+        bool shifted,
+        int offset,
+        string? seriesTitle,
+        Action<int, int, ProviderMatch> take)
+    {
+        var rescued = 0;
+        var firsts = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        for (var index = 0; index < videos.Count; index++)
+        {
+            var key = NormalizeTitle(EpisodeNumbering.StripPart(videos[index].Title ?? string.Empty), seriesTitle);
+            if (key.Length > 0 && !firsts.ContainsKey(key))
+            {
+                firsts[key] = index;
+            }
+        }
+
+        for (var index = 0; index < videos.Count; index++)
+        {
+            if (duplicates[index] || assigned[index] >= 0 || methods[index] != ProviderMatch.None)
+            {
+                continue;
+            }
+
+            if (videos[index].Chapter is not { } counter || counter <= 0)
+            {
+                continue;
+            }
+
+            // A second part is not a video the provider lists: the counter of a program that splits an episode
+            // runs ahead, and the place it announces belongs to the arc of the next episode. Its first part is
+            // the one that has an episode, and pass 7 writes it as the part 2 of that same episode.
+            var key = NormalizeTitle(EpisodeNumbering.StripPart(videos[index].Title ?? string.Empty), seriesTitle);
+            if (PartNumber(videos[index].Title) is { } number
+                && number > 1
+                && key.Length > 0
+                && firsts.TryGetValue(key, out var owner)
+                && owner != index)
+            {
+                continue;
+            }
+
+            var shift = shifted ? shifts[index] : offset;
+            var expected = counter - 1 + shift;
+
+            if (expected < 0 || expected >= pool.Count)
+            {
+                continue;
+            }
+
+            var closest = -1;
+            var distance = int.MaxValue;
+            var first = Math.Max(0, expected - OrphanReach);
+            var last = Math.Min(pool.Count - 1, expected + OrphanReach);
+
+            for (var candidate = first; candidate <= last; candidate++)
+            {
+                if (used[candidate])
+                {
+                    continue;
+                }
+
+                var away = Math.Abs(candidate - expected);
+                if (away < distance)
+                {
+                    distance = away;
+                    closest = candidate;
+                }
+            }
+
+            if (closest < 0)
+            {
+                continue;
+            }
+
+            take(index, closest, shift == 0 ? ProviderMatch.Counter : ProviderMatch.CounterShift);
+            rescued++;
+        }
+
+        return rescued;
+    }
+
+    /// <summary>
     /// Tells whether the <c>capitol</c> of the videos may be read as the absolute numbering of the program.
     /// </summary>
     /// <param name="videos">Videos of 3Cat, in air order.</param>

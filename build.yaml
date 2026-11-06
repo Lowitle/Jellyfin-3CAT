@@ -1,7 +1,7 @@
 ---
 name: "3Cat"
 guid: "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-version: "1.8.2.0"
+version: "1.8.3.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Crea una biblioteca de series con el catálogo a la carta de 3Cat (.strm + metadatos + subtítulos)."
@@ -16,6 +16,18 @@ owner: "Lowitle"
 artifacts:
   - "Jellyfin.Plugin.ThreeCat.dll"
 changelog: >
+  1.8.3.0: los vídeos que 3Cat fecha fuera de orden dejan de quedarse sin episodio. El emparejamiento recorre las
+  dos listas hacia adelante y no vuelve atrás, así que un capítulo que 3Cat publica con una fecha posterior a la del
+  siguiente —el 40 de «El detectiu Conan» llega después del 41, y el 53 después del 79— pasaba de largo el episodio
+  que le tocaba y se quedaba sin él aunque siguiera libre; el hueco lo rellenaba después la pasada del orden, que
+  reparte por descarte los episodios que sobran, y le daba uno que no era el suyo. Ahora, después de alinear por el
+  «capitol» con el desfase leído de los títulos y antes de repartir por orden, una pasada de rescate empareja cada
+  vídeo que se quedó sin episodio con el libre más cercano a la posición que anuncia su contador, con dos posiciones
+  de margen, sin reclamar nunca un episodio ya escrito y sin tocar las segundas partes, que se resuelven como el
+  «part2» del episodio de su primera parte. Medido sobre el catálogo real de «El detectiu Conan»: los vídeos del
+  informe que se quedan sin episodio bajan de 36 a 29, el capítulo 40 se coloca en «El caso de la heredera asesinada
+  (1)» y el 41 en el (2), y el 53 y el 54, que 3Cat fecha al final de la temporada, vuelven a «El caso del Monstruo
+  de la Niebla», el 54 como segunda parte.
   1.8.2.0: el contador de 3Cat deja de ir desfasado cuando el catálogo emite un episodio en varias partes. El
   «capitol» cuenta emisiones de 3Cat, no episodios del original: en «El detectiu Conan», 183 de sus 385 vídeos son
   la primera o la segunda mitad de algo, y TMDB numera muchos de esos episodios una sola vez, así que desde el

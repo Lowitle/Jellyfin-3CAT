@@ -368,10 +368,12 @@ public sealed class ProviderNumberingResult
 /// user, then the air date (the same day, then one day apart) when it is dense enough to be the same emission,
 /// then the normalized title (equality, then containment), then the <c>capitol</c> of 3Cat (the absolute
 /// numbering of the program, which keeps the holes of its catalog and survives a dub with its own titles and
-/// its own dates), then the order inside the gap between two already matched pairs, and finally the parts of an
-/// episode the provider lists once. A provider episode is never assigned twice, the duplicated videos of 3Cat are
-/// still dropped, and a video with no evidence goes to the season of specials with its air date in front of the
-/// title, as the catalog mode already does.
+/// its own dates), then that same <c>capitol</c> again for the videos the alignment walked past —a catalog dated
+/// out of order leaves a video without its episode even though the episode is still free—, then the order inside
+/// the gap between two already matched pairs, and finally the parts of an episode the provider lists once. A
+/// provider episode is never assigned twice, the duplicated videos of 3Cat are still dropped, and a video with no
+/// evidence goes to the season of specials with its air date in front of the title, as the catalog mode already
+/// does.
 /// </para>
 /// <para>
 /// The counter is read as it comes, but it counts emissions of 3Cat and 3Cat splits the episodes it airs in two
@@ -610,10 +612,12 @@ public static partial class ProviderNumbering
         var byCounterCount = 0;
         var byShiftCount = 0;
         var votes = 0;
+        var shifts = new int[videos.Count];
+        var shifted = false;
 
         if (counterUsable)
         {
-            var (shifts, votesFound) = CounterShifts(
+            (shifts, votes) = CounterShifts(
                 videos,
                 pool,
                 used,
@@ -622,10 +626,9 @@ public static partial class ProviderNumbering
                 counterOffset,
                 seriesTitle);
 
-            votes = votesFound;
-
             if (shifts.Any(shift => shift != 0))
             {
+                shifted = true;
                 byShiftCount = AlignByShift(
                     videos,
                     pool,
@@ -643,10 +646,39 @@ public static partial class ProviderNumbering
             }
         }
 
-        // Pass 5, by order inside the gaps left between the matched pairs.
+        // Pass 5, the videos no pass could place. The alignment walks the two lists forward, so a catalog dated
+        // out of order —the 40 of «Detectiu Conan» arrives after the 41— leaves a video without its episode even
+        // though the episode is still free. The counter and its shift say which one it is; the parts say the
+        // opposite and are left to pass 7.
+        if (counterUsable)
+        {
+            var rescued = RescueOrphans(
+                videos,
+                pool,
+                used,
+                assigned,
+                duplicates,
+                methods,
+                shifts,
+                shifted,
+                counterOffset,
+                seriesTitle,
+                Take);
+
+            if (shifted)
+            {
+                byShiftCount += rescued;
+            }
+            else
+            {
+                byCounterCount += rescued;
+            }
+        }
+
+        // Pass 6, by order inside the gaps left between the matched pairs.
         var byOrderCount = MatchByOrder(videos, pool, used, assigned, duplicates, Take);
 
-        // Pass 6, the parts of an episode the provider lists once. The alignment leaves the second part without an
+        // Pass 7, the parts of an episode the provider lists once. The alignment leaves the second part without an
         // episode of its own because there is none to give it; it is still a video 3Cat publishes, and Jellyfin
         // plays it right after its first part when the two files are parts of the same episode.
         var byPartCount = LinkParts(videos, slots, methods, pairs, assigned, duplicates, seriesTitle);
