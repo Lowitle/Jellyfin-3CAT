@@ -31,9 +31,9 @@ changelog: >
   en todas las bibliotecas que apuntan a ella, una biblioteca curada («Anime», «Infantil»…) puede apuntar a una
   sola subcarpeta sin duplicar un solo archivo: la copia espejo por programa sigue existiendo para lo que de verdad
   es otra copia (otro disco, otra biblioteca de otro nombre). El cine deja de escribirse como una serie: cada
-  título que publica el programa es una película en su carpeta «Título (Año)», con su <c>movie.nfo</c>, su carátula
+  título que publica el programa es una película en su carpeta «Título (Año)», con su movie.nfo, su carátula
   y sus subtítulos, y las partes en que 3Cat emite una película se escriben como versiones de la misma película
-  («- part1», «- part2»), que es lo único que Jellyfin sabe leer. El <c>movie.nfo</c> no lleva ningún id de
+  («- part1», «- part2»), que es lo único que Jellyfin sabe leer. El movie.nfo no lleva ningún id de
   proveedor a propósito: el dataset de identificadores resuelve los de las series, y el id de televisión de TMDB en
   una película haría que Jellyfin trajese la ficha de otra obra. Las películas caducadas o renombradas se retiran
   con su carpeta, y solo cuando la carpeta es de este programa. La primera actualización después de activar la
