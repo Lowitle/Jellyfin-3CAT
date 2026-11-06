@@ -104,7 +104,20 @@ public enum ProviderMatch
     /// The <c>capitol</c> of the video is the position of an episode of the provider in the absolute numbering
     /// of the series, so the video is the episode the counter announces and the catalog of 3Cat keeps its holes.
     /// </summary>
-    Counter = 5
+    Counter = 5,
+
+    /// <summary>
+    /// The <c>capitol</c> of the video announces the episode once the shift of the counter is applied, which is
+    /// what the titles of the two catalogs read: 3Cat emits as two videos episodes the provider lists once, and
+    /// without the shift every video after the split is numbered one episode ahead.
+    /// </summary>
+    CounterShift = 6,
+
+    /// <summary>
+    /// The video is a part of another video of 3Cat —«(1a part)», «(2a part)»— and the provider lists the episode
+    /// once, so it has no episode of its own: it is written as a part of the episode its first part goes to.
+    /// </summary>
+    Part = 7
 }
 
 /// <summary>
@@ -128,6 +141,9 @@ public sealed class ProviderNumberingResult
     /// <param name="byOrder">Videos paired by order inside a gap.</param>
     /// <param name="byAnchor">Videos paired by an anchor typed by the user.</param>
     /// <param name="byCounter">Videos paired by the <c>capitol</c> counter of 3Cat.</param>
+    /// <param name="byShift">Videos paired by the counter with the shift the titles read.</param>
+    /// <param name="byPart">Videos written as a part of an episode another video of 3Cat also writes.</param>
+    /// <param name="votes">Videos whose title named an episode when the shift was read.</param>
     /// <param name="counterOffset">Difference between the counter and the absolute numbering of the provider.</param>
     /// <param name="anchors">Anchors the user typed, whether they could be placed or not.</param>
     /// <param name="anchorsPlaced">Anchors that could be placed, the rest named a video or an episode that is not there.</param>
@@ -147,6 +163,9 @@ public sealed class ProviderNumberingResult
         int byOrder,
         int byAnchor,
         int byCounter,
+        int byShift,
+        int byPart,
+        int votes,
         int counterOffset,
         int anchors,
         int anchorsPlaced,
@@ -164,6 +183,9 @@ public sealed class ProviderNumberingResult
         ByOrder = byOrder;
         ByAnchor = byAnchor;
         ByCounter = byCounter;
+        ByShift = byShift;
+        ByPart = byPart;
+        Votes = votes;
         CounterOffset = counterOffset;
         Anchors = anchors;
         AnchorsPlaced = anchorsPlaced;
@@ -226,6 +248,26 @@ public sealed class ProviderNumberingResult
     /// the series and keeps the holes of its catalog.
     /// </summary>
     public int ByCounter { get; }
+
+    /// <summary>
+    /// Gets the number of videos paired by the counter once the shift the titles read is applied: 3Cat emits as two
+    /// videos episodes the provider lists once, so the counter of the program runs ahead of the provider and every
+    /// video after a split would be numbered one episode too far.
+    /// </summary>
+    public int ByShift { get; }
+
+    /// <summary>
+    /// Gets the number of videos written as a part of an episode that another video of 3Cat also writes: the
+    /// catalog splits episodes the provider lists once, and both files land on the same episode as <c>part1</c>
+    /// and <c>part2</c> so Jellyfin plays them in order.
+    /// </summary>
+    public int ByPart { get; }
+
+    /// <summary>
+    /// Gets the number of videos whose title named an episode of the provider written in the other language, which
+    /// is what the shift was read from. Zero when the titles said nothing and the counter was used as it comes.
+    /// </summary>
+    public int Votes { get; }
 
     /// <summary>
     /// Gets the difference the anchors deduced between the counter of 3Cat and the absolute numbering of the
@@ -302,7 +344,7 @@ public sealed class ProviderNumberingResult
     /// <summary>
     /// Gets the number of videos paired with an episode of the provider.
     /// </summary>
-    public int Matched => ByDate + ByTitle + ByOrder + ByAnchor + ByCounter;
+    public int Matched => ByDate + ByTitle + ByOrder + ByAnchor + ByCounter + ByShift + ByPart;
 
     /// <summary>
     /// Gets the share of videos paired with an episode of the provider (0 to 1).
@@ -326,9 +368,18 @@ public sealed class ProviderNumberingResult
 /// user, then the air date (the same day, then one day apart) when it is dense enough to be the same emission,
 /// then the normalized title (equality, then containment), then the <c>capitol</c> of 3Cat (the absolute
 /// numbering of the program, which keeps the holes of its catalog and survives a dub with its own titles and
-/// its own dates), then the order inside the gap between two already matched pairs. A provider episode is never
-/// assigned twice, the duplicated videos of 3Cat are still dropped, and a video with no evidence goes to the
-/// season of specials with its air date in front of the title, as the catalog mode already does.
+/// its own dates), then the order inside the gap between two already matched pairs, and finally the parts of an
+/// episode the provider lists once. A provider episode is never assigned twice, the duplicated videos of 3Cat are
+/// still dropped, and a video with no evidence goes to the season of specials with its air date in front of the
+/// title, as the catalog mode already does.
+/// </para>
+/// <para>
+/// The counter is read as it comes, but it counts emissions of 3Cat and 3Cat splits the episodes it airs in two
+/// halves, so from the first split on every video is one position ahead of where it belongs. The titles of the two
+/// catalogs —written in Catalan and in the language of the provider, compared by their roots and weighted by how
+/// rare each word is— say how far, and the videos are then aligned instead of looked up: see
+/// <see cref="ProviderNumbering.CounterShifts"/> and <see cref="ProviderNumbering.AlignByShift"/>. When the titles
+/// say nothing, the counter is used exactly as before.
 /// </para>
 /// <para>
 /// When the coverage stays below <see cref="MinimumCoverage"/> the result says so
@@ -455,6 +506,9 @@ public static partial class ProviderNumbering
                 0,
                 0,
                 0,
+                0,
+                0,
+                0,
                 anchorCount,
                 0,
                 datesReliable: false,
@@ -546,13 +600,56 @@ public static partial class ProviderNumbering
         // Pass 4, by counter. It goes before the fill of the gaps: the counter is exact when the two counters
         // start at the same episode, while a gap that happens to have the same number of videos and episodes is
         // only an inference —and with the holes of «Detectiu Conan» it is an inference that numbers 857 as 136—.
+        //
+        // The counter counts emissions of 3Cat, not episodes of the original, so a program that splits a long
+        // episode in two —«(1a part)», «(2a part)»— moves every video after the split one position ahead. The
+        // titles of the two catalogs say how far: a video that finds an episode whose title looks like its own,
+        // even written in another language, votes for a shift, and the alignment pairs the two lists with the
+        // shift applied. Without a single vote the counter is read as it comes, exactly as before.
         var counterOffset = counterUsable ? anchorOffset ?? 0 : 0;
-        var byCounterCount = counterUsable
-            ? AlignByCounter(videos, pool, used, assigned, duplicates, counterOffset, Take)
-            : 0;
+        var byCounterCount = 0;
+        var byShiftCount = 0;
+        var votes = 0;
+
+        if (counterUsable)
+        {
+            var (shifts, votesFound) = CounterShifts(
+                videos,
+                pool,
+                used,
+                assigned,
+                duplicates,
+                counterOffset,
+                seriesTitle);
+
+            votes = votesFound;
+
+            if (shifts.Any(shift => shift != 0))
+            {
+                byShiftCount = AlignByShift(
+                    videos,
+                    pool,
+                    used,
+                    assigned,
+                    duplicates,
+                    shifts,
+                    counterOffset,
+                    seriesTitle,
+                    Take);
+            }
+            else
+            {
+                byCounterCount = AlignByCounter(videos, pool, used, assigned, duplicates, counterOffset, Take);
+            }
+        }
 
         // Pass 5, by order inside the gaps left between the matched pairs.
         var byOrderCount = MatchByOrder(videos, pool, used, assigned, duplicates, Take);
+
+        // Pass 6, the parts of an episode the provider lists once. The alignment leaves the second part without an
+        // episode of its own because there is none to give it; it is still a video 3Cat publishes, and Jellyfin
+        // plays it right after its first part when the two files are parts of the same episode.
+        var byPartCount = LinkParts(videos, slots, methods, pairs, assigned, duplicates, seriesTitle);
 
         return Finish(
             slots,
@@ -564,6 +661,9 @@ public static partial class ProviderNumbering
             byOrderCount,
             byAnchorCount,
             byCounterCount,
+            byShiftCount,
+            byPartCount,
+            votes,
             counterOffset,
             anchorCount,
             anchorsPlaced,
@@ -859,8 +959,92 @@ public static partial class ProviderNumbering
     }
 
     /// <summary>
-    /// Pairs the videos left inside a gap between two already matched pairs, when the gap has the same
-    /// number of videos of 3Cat and episodes of the provider, so the order of one is the order of the other.
+    /// Writes the videos that are a second or third part of an episode as a part of the episode their first part
+    /// writes.
+    /// </summary>
+    /// <param name="videos">Videos of 3Cat, in air order.</param>
+    /// <param name="slots">Slot of every video, filled in place.</param>
+    /// <param name="methods">Evidence of every video, filled in place.</param>
+    /// <param name="pairs">Episode paired with every video, filled in place.</param>
+    /// <param name="assigned">Episode assigned to every video.</param>
+    /// <param name="duplicates">Videos 3Cat publishes twice.</param>
+    /// <param name="seriesTitle">Title of the series, to compare the titles without it.</param>
+    /// <returns>The number of videos written as a part.</returns>
+    /// <remarks>
+    /// <para>
+    /// «Detectiu Conan» is 48 % parts: 3Cat emits a long episode as «(1a part)» and «(2a part)» while TMDB lists it
+    /// once, so the second part has no episode of its own. Leaving it in the season of specials would drop half the
+    /// catalog; giving it the following episode —what the counter does without the shift— desynchronises the whole
+    /// series.
+    /// </para>
+    /// <para>
+    /// Jellyfin reads files whose names end in <c>- part1</c> and <c>- part2</c> as the parts of a single episode
+    /// and plays them in order, which is exactly what the catalog published: one episode, two videos. The slot
+    /// carries the part so the name writer can say it.
+    /// </para>
+    /// </remarks>
+    private static int LinkParts(
+        IReadOnlyList<ProviderVideo> videos,
+        EpisodeSlot[] slots,
+        ProviderMatch[] methods,
+        ProviderEpisode?[] pairs,
+        int[] assigned,
+        bool[] duplicates,
+        string? seriesTitle)
+    {
+        var matched = 0;
+        var first = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        for (var index = 0; index < videos.Count; index++)
+        {
+            if (duplicates[index])
+            {
+                continue;
+            }
+
+            var key = NormalizeTitle(EpisodeNumbering.StripPart(videos[index].Title ?? string.Empty), seriesTitle);
+            if (key.Length == 0)
+            {
+                continue;
+            }
+
+            var part = PartNumber(videos[index].Title);
+
+            // Only a video without an episode of its own is a part of another one: when the provider also splits the
+            // episode —«Asesinatos en el crucero de lujo (1)» and «(2)»— the alignment already gave each video its
+            // own episode and there is nothing to link.
+            if (part is { } number
+                && number > 1
+                && assigned[index] < 0
+                && first.TryGetValue(key, out var owner)
+                && assigned[owner] >= 0)
+            {
+                // Both files need the suffix: Jellyfin groups them when the two names only differ in «- partN», so
+                // the video that takes the episode is part 1 as soon as a second part exists.
+                if (slots[owner].Part == 0)
+                {
+                    slots[owner] = slots[owner] with { Part = 1 };
+                }
+
+                slots[index] = slots[owner] with { Part = number };
+                pairs[index] = pairs[owner];
+                methods[index] = ProviderMatch.Part;
+                matched++;
+                continue;
+            }
+
+            if (assigned[index] >= 0 && !first.ContainsKey(key))
+            {
+                first[key] = index;
+            }
+        }
+
+        return matched;
+    }
+
+    /// <summary>
+    /// Pairs the videos left inside a gap between two already matched pairs, when the gap has the same number of
+    /// videos of 3Cat and episodes of the provider, so the order of one is the order of the other.
     /// </summary>
     /// <param name="videos">Videos of 3Cat.</param>
     /// <param name="pool">Episodes of the provider that may be assigned.</param>
@@ -998,6 +1182,9 @@ public static partial class ProviderNumbering
     /// <param name="byOrder">Videos paired by order.</param>
     /// <param name="byAnchor">Videos paired by an anchor.</param>
     /// <param name="byCounter">Videos paired by the <c>capitol</c> counter of 3Cat.</param>
+    /// <param name="byShift">Videos paired by the counter once the shift read from the titles is applied.</param>
+    /// <param name="byPart">Videos written as a part of an episode whose other part is another video of 3Cat.</param>
+    /// <param name="votes">Videos whose title named an episode of the provider when the shift was read.</param>
     /// <param name="counterOffset">Difference between the counter and the absolute numbering of the provider.</param>
     /// <param name="anchors">Anchors the user typed.</param>
     /// <param name="anchorsPlaced">Anchors that could be placed.</param>
@@ -1015,6 +1202,9 @@ public static partial class ProviderNumbering
         int byOrder,
         int byAnchor,
         int byCounter,
+        int byShift,
+        int byPart,
+        int votes,
         int counterOffset,
         int anchors,
         int anchorsPlaced,
@@ -1043,7 +1233,7 @@ public static partial class ProviderNumbering
         }
 
         var assignable = slots.Length - duplicateCount;
-        var matched = byDate + byTitle + byOrder + byAnchor + byCounter;
+        var matched = byDate + byTitle + byOrder + byAnchor + byCounter + byShift + byPart;
         var coverage = assignable <= 0 ? 0 : (double)matched / assignable;
 
         var reason = forcedReason;
@@ -1075,6 +1265,9 @@ public static partial class ProviderNumbering
             byOrder,
             byAnchor,
             byCounter,
+            byShift,
+            byPart,
+            votes,
             counterOffset,
             anchors,
             anchorsPlaced,

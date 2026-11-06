@@ -70,14 +70,24 @@ public static class LibraryNaming
     /// <param name="season">Season number.</param>
     /// <param name="episode">Episode number.</param>
     /// <param name="title">Episode title.</param>
+    /// <param name="part">
+    /// Part of the episode, or 0 when the file is the whole episode. Jellyfin groups the files whose names end in
+    /// <c>- part1</c>, <c>- part2</c> as the parts of one episode and plays them in order, which is what a video of
+    /// 3Cat is when the provider lists the episode once.
+    /// </param>
     /// <returns>The base file name (without extension).</returns>
-    public static string EpisodeFileName(string seriesTitle, int season, int episode, string? title)
+    public static string EpisodeFileName(string seriesTitle, int season, int episode, string? title, int part = 0)
     {
         var code = string.Format(CultureInfo.InvariantCulture, "S{0:00}E{1:00}", season, episode);
         var suffix = Sanitize(title, 120, string.Empty);
         var name = suffix.Length == 0
             ? $"{Sanitize(seriesTitle, 100, "Serie")} - {code}"
             : $"{Sanitize(seriesTitle, 100, "Serie")} - {code} - {suffix}";
+
+        if (part > 0)
+        {
+            name = $"{name} - part{part.ToString(CultureInfo.InvariantCulture)}";
+        }
 
         return Sanitize(name, 160, code);
     }

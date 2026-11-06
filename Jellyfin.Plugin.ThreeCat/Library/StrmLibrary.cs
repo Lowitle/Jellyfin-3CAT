@@ -78,7 +78,7 @@ public static class StrmLibrary
             Directory.CreateDirectory(seasonFolder);
 
             var baseName = Unique(
-                LibraryNaming.EpisodeFileName(series.Title, episode.Season, episode.Episode, episode.Title),
+                LibraryNaming.EpisodeFileName(series.Title, episode.Season, episode.Episode, episode.Title, episode.Part),
                 usedNames);
 
             var strmPath = Path.Combine(seasonFolder, baseName + ".strm");

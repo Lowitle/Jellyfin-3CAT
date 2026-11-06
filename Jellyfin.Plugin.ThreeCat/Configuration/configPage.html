@@ -720,6 +720,7 @@
                 var providerTitle = threeCatField(row, 'providerTitle');
                 var providerAirDate = threeCatField(row, 'providerAirDate');
                 var chapter = threeCatField(row, 'chapter');
+                var part = threeCatInt(threeCatField(row, 'part'), 0);
 
                 tr.appendChild(threeCatElement('td', '', title || videoId || ''));
                 tr.appendChild(threeCatElement('td', 'threeCatMono',
@@ -728,7 +729,8 @@
                     chapter === null || chapter === undefined ? '—' : String(chapter)));
                 tr.appendChild(threeCatElement('td', 'threeCatMono',
                     'S' + String(season).padStart(2, '0')
-                    + 'E' + String(episode).padStart(2, '0')));
+                    + 'E' + String(episode).padStart(2, '0')
+                    + (part > 0 ? ' · parte ' + part : '')));
                 tr.appendChild(threeCatElement('td', '', method || ''));
                 tr.appendChild(threeCatElement('td', '', providerTitle
                     ? providerTitle + (providerAirDate ? ' (' + providerAirDate + ')' : '')
@@ -828,6 +830,8 @@
 
                 var anchors = threeCatInt(threeCatField(report, 'anchors'), 0);
                 var placed = threeCatInt(threeCatField(report, 'anchorsPlaced'), 0);
+                var shifted = threeCatInt(threeCatField(report, 'byShift'), 0);
+                var parts = threeCatInt(threeCatField(report, 'byPart'), 0);
 
                 return 'Vídeos: ' + videos
                     + ' · Emparejados: ' + threeCatInt(threeCatField(report, 'matched'), 0)
@@ -838,6 +842,11 @@
                     + (threeCatInt(threeCatField(report, 'counterOffset'), 0) !== 0
                         ? ' (desfase ' + threeCatInt(threeCatField(report, 'counterOffset'), 0) + ')'
                         : '')
+                    + (shifted > 0
+                        ? ' · capitol ajustado ' + shifted
+                            + ' (' + threeCatInt(threeCatField(report, 'votes'), 0) + ' votos de título)'
+                        : '')
+                    + (parts > 0 ? ' · partes ' + parts : '')
                     + ' · ancla ' + threeCatInt(threeCatField(report, 'byAnchor'), 0) + ')'
                     + (anchors > 0 ? ' · Anclas colocadas: ' + placed + '/' + anchors : '')
                     + ' · Temporada 0: ' + threeCatInt(threeCatField(report, 'specials'), 0)

@@ -16,6 +16,7 @@ public sealed partial class ThreeCatSyncService
         ThreeCatVideo video,
         int season,
         int number,
+        int part,
         CancellationToken cancellationToken)
     {
         var videoId = video.Id!;
@@ -37,6 +38,14 @@ public sealed partial class ThreeCatSyncService
             special ? "Especial" : $"Episodio {number}");
 
         var episodeTitle = EpisodeNumbering.StripNumber(StripSeriesPrefix(title, seriesTitle));
+
+        // A video that is the second part of an episode is written next to its first part with the same name and a
+        // «- part2» suffix, so Jellyfin reads the two files as one episode and plays them in order: the name has to
+        // drop the «(2a part)» the catalog writes, or the two names differ and Jellyfin lists two episodes.
+        if (part > 0)
+        {
+            episodeTitle = EpisodeNumbering.StripPart(episodeTitle);
+        }
 
         if (special)
         {
@@ -64,6 +73,7 @@ public sealed partial class ThreeCatSyncService
         {
             Season = season,
             Episode = number,
+            Part = part,
             Title = episodeTitle,
             Plot = HtmlText.FromHtml(info?.Description),
             Url = url,

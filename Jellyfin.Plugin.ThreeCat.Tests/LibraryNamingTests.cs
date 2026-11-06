@@ -39,6 +39,24 @@ public class LibraryNamingTests
     }
 
     [Fact]
+    public void EpisodeFileName_SaysThePartSoJellyfinGroupsTheTwoFilesAsOneEpisode()
+    {
+        // Jellyfin reads two files of the same episode whose names end in «- part1» and «- part2» as the parts of
+        // one episode, and plays them in order: 3Cat publishes the episodes it splits that way.
+        Assert.Equal(
+            "Detectiu Conan - S01E11 - Sonata a la luz de la luna - part1",
+            LibraryNaming.EpisodeFileName("Detectiu Conan", 1, 11, "Sonata a la luz de la luna", 1));
+
+        Assert.Equal(
+            "Detectiu Conan - S01E11 - Sonata a la luz de la luna - part2",
+            LibraryNaming.EpisodeFileName("Detectiu Conan", 1, 11, "Sonata a la luz de la luna", 2));
+
+        Assert.Equal(
+            "Detectiu Conan - S01E11 - Sonata a la luz de la luna",
+            LibraryNaming.EpisodeFileName("Detectiu Conan", 1, 11, "Sonata a la luz de la luna"));
+    }
+
+    [Fact]
     public void Sanitize_KeepsTheCatalanCharactersOf3Cat()
     {
         Assert.Equal("Doraemon, el gat còsmic", LibraryNaming.Sanitize("Doraemon, el gat còsmic", 100, "Serie"));

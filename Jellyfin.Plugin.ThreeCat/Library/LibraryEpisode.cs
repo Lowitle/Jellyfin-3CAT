@@ -21,6 +21,16 @@ public sealed class LibraryEpisode
     public string Title { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the part of the episode the video is, or 0 when the video is the whole episode.
+    /// </summary>
+    /// <remarks>
+    /// 3Cat emits as two videos the episodes it splits and the provider lists them once. The two files are written
+    /// with the same episode number and a <c>- part1</c>/<c>- part2</c> suffix, which is how Jellyfin reads them as
+    /// one episode and plays them in order.
+    /// </remarks>
+    public int Part { get; set; }
+
+    /// <summary>
     /// Gets or sets the plot.
     /// </summary>
     public string? Plot { get; set; }

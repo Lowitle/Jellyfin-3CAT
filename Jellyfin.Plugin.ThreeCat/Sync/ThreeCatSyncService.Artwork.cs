@@ -174,7 +174,7 @@ public sealed partial class ThreeCatSyncService
     private static int PruneExpiredFiles(
         string? seriesPath,
         string seriesTitle,
-        List<(int Season, int Episode, string Title)> expired)
+        List<(int Season, int Episode, int Part, string Title)> expired)
     {
         if (expired.Count == 0 || string.IsNullOrEmpty(seriesPath) || !Directory.Exists(seriesPath))
         {
@@ -183,7 +183,7 @@ public sealed partial class ThreeCatSyncService
 
         var removed = 0;
 
-        foreach (var (season, episode, title) in expired)
+        foreach (var (season, episode, part, title) in expired)
         {
             var seasonFolder = Path.Combine(seriesPath, $"Season {season}");
             if (!Directory.Exists(seasonFolder))
@@ -191,7 +191,12 @@ public sealed partial class ThreeCatSyncService
                 continue;
             }
 
-            var baseName = LibraryNaming.EpisodeFileName(seriesTitle, season, episode, title);
+            var baseName = LibraryNaming.EpisodeFileName(
+                seriesTitle,
+                season,
+                episode,
+                EpisodeNumbering.StripPart(title),
+                part);
 
             // The pattern also matches the « [2]» suffix that StrmLibrary appends to a repeated name.
             foreach (var file in Directory.EnumerateFiles(seasonFolder, baseName + "*"))

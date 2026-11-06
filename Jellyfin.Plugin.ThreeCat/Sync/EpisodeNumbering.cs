@@ -51,6 +51,29 @@ public static partial class EpisodeNumbering
     }
 
     /// <summary>
+    /// Removes the part a title announces, because the file name carries it as <c>- part2</c> and both parts of an
+    /// episode have to share the rest of the name for Jellyfin to read them as one episode.
+    /// </summary>
+    /// <param name="title">Episode title, for instance «El cas de la sonata (2a part)».</param>
+    /// <returns>The title without the part, or the title itself when it announces none.</returns>
+    public static string StripPart(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return title;
+        }
+
+        var match = PartRegex().Match(title);
+        if (!match.Success)
+        {
+            return title;
+        }
+
+        var rest = (title[..match.Index] + title[(match.Index + match.Length)..]).Trim();
+        return rest.Length > 0 ? rest : title;
+    }
+
+    /// <summary>
     /// Removes the numbering from a title, because the file name already carries it as
     /// <c>SxxEyy</c> («T22xC6 - Visita als inferns» → «Visita als inferns»).
     /// </summary>
@@ -186,6 +209,14 @@ public static partial class EpisodeNumbering
 
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
     private static partial Regex WhitespaceRegex();
+
+    // The part closes the title and it is written with the two languages of the catalogs: «(2a part)», «(part 2)»,
+    // «(2/2)», «(2)». It is the same expression the matcher reads, kept here because the file name needs the rest
+    // of the title without it.
+    [GeneratedRegex(
+        @"\(\s*(?:part|parte)\s*\d+\s*\)|\(\s*\d+\s*a?\s*parts?\s*\)|\(\s*\d+\s*/\s*\d+\s*\)|\(\s*\d+\s*\)\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex PartRegex();
 }
 
 /// <summary>
@@ -196,4 +227,10 @@ public static partial class EpisodeNumbering
 /// <param name="IsDuplicate">
 /// <c>true</c> when 3Cat publishes the same video twice and it must not be written again.
 /// </param>
-public readonly record struct EpisodeSlot(int Season, int Episode, bool IsDuplicate);
+/// <param name="Part">
+/// Part of the episode the video is, or 0 when it is the whole episode. 3Cat emits as two videos the episodes it
+/// splits —«(1a part)», «(2a part)»— and the provider lists them once: Jellyfin plays the parts of an episode in
+/// order when the file names end in <c>- part1</c>, <c>- part2</c>, so both videos land on the same episode
+/// instead of the second one landing nowhere.
+/// </param>
+public readonly record struct EpisodeSlot(int Season, int Episode, bool IsDuplicate, int Part = 0);

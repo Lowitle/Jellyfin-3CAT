@@ -538,6 +538,21 @@ public sealed class ThreeCatPlayController : ControllerBase
                                 highestCounter,
                                 episodes.Count(episode => episode.Season > 0 && episode.Episode > 0));
                         }
+
+                        // The counter counts emissions of 3Cat and 3Cat splits episodes, so the shift is the
+                        // difference between the two catalogs and the user has to know it was applied.
+                        if (result.ByShift > 0)
+                        {
+                            message += $" 3Cat emite en varias partes episodios que TMDB numera una sola vez, así que"
+                                + $" su contador va desfasado: {result.Votes} títulos escritos en otro idioma sitúan"
+                                + $" {result.ByShift} vídeos en el episodio que les toca.";
+                        }
+
+                        if (result.ByPart > 0)
+                        {
+                            message += $" {result.ByPart} vídeos son la segunda o tercera parte de un episodio y se"
+                                + " escriben como «part1» y «part2» del mismo episodio, que es como los publicó 3Cat.";
+                        }
                     }
                 }
             }
@@ -560,7 +575,8 @@ public sealed class ThreeCatPlayController : ControllerBase
                     slot.IsDuplicate ? "duplicado" : MethodName(result.Methods[index]),
                     episode?.Title,
                     episode?.AirDate,
-                    ordered[index].Chapter));
+                    ordered[index].Chapter,
+                    slot.Part));
             }
         }
 
@@ -576,6 +592,9 @@ public sealed class ThreeCatPlayController : ControllerBase
             result?.ByOrder ?? 0,
             result?.ByAnchor ?? 0,
             result?.ByCounter ?? 0,
+            result?.ByShift ?? 0,
+            result?.ByPart ?? 0,
+            result?.Votes ?? 0,
             result?.CounterOffset ?? 0,
             result?.Anchors ?? anchorList.Count,
             result?.AnchorsPlaced ?? 0,
@@ -794,6 +813,8 @@ public sealed class ThreeCatPlayController : ControllerBase
             ProviderMatch.Order => "orden",
             ProviderMatch.Anchor => "ancla",
             ProviderMatch.Counter => "capitol",
+            ProviderMatch.CounterShift => "capitol ajustado",
+            ProviderMatch.Part => "parte",
             _ => "sin evidencia"
         };
 
@@ -922,6 +943,11 @@ public sealed record ThreeCatDatasetStatus(
 /// Counter <c>capitol</c> 3Cat publishes for the video, which is what tells where its catalog is not continuous
 /// and what makes an anchor easy to write; <c>null</c> when 3Cat publishes none.
 /// </param>
+/// <param name="Part">
+/// Part of the episode the video would be written as, or 0 when the video is the whole episode: 3Cat emits as two
+/// videos the episodes it splits and the provider lists them once, and the two files end up in the same episode as
+/// <c>- part1</c> and <c>- part2</c>.
+/// </param>
 public sealed record ThreeCatMappingRow(
     string VideoId,
     string Title,
@@ -931,7 +957,8 @@ public sealed record ThreeCatMappingRow(
     string Method,
     string? ProviderTitle,
     DateOnly? ProviderAirDate,
-    int? Chapter);
+    int? Chapter,
+    int Part);
 
 /// <summary>
 /// Preview of the numbering a program would get with a provider, which the page shows before anything is
@@ -948,6 +975,12 @@ public sealed record ThreeCatMappingRow(
 /// <param name="ByOrder">Videos paired by order inside a gap.</param>
 /// <param name="ByAnchor">Videos paired by an anchor typed by the user.</param>
 /// <param name="ByCounter">Videos paired by the <c>capitol</c> counter of 3Cat.</param>
+/// <param name="ByShift">
+/// Videos paired by the counter once the shift the titles read is applied: 3Cat emits as two videos the episodes it
+/// splits, so the counter of the program runs ahead of the provider from the first split on.
+/// </param>
+/// <param name="ByPart">Videos written as a part of an episode another video of 3Cat also writes.</param>
+/// <param name="Votes">Videos whose title named an episode of the provider written in the other language.</param>
 /// <param name="CounterOffset">
 /// Difference the anchors deduced between the counter of 3Cat and the absolute numbering of the provider; 0 when
 /// both start at the same episode.
@@ -983,6 +1016,9 @@ public sealed record ThreeCatMappingReport(
     int ByOrder,
     int ByAnchor,
     int ByCounter,
+    int ByShift,
+    int ByPart,
+    int Votes,
     int CounterOffset,
     int Anchors,
     int AnchorsPlaced,

@@ -111,7 +111,7 @@ public sealed partial class ThreeCatSyncService
         var slots = numbering.Slots;
 
         var episodes = new List<LibraryEpisode>();
-        var expired = new List<(int Season, int Episode, string Title)>();
+        var expired = new List<(int Season, int Episode, int Part, string Title)>();
         var skipped = 0;
         var duplicates = 0;
         var now = DateTimeOffset.UtcNow;
@@ -138,7 +138,7 @@ public sealed partial class ThreeCatSyncService
             if (configuration.PruneExpired && video.Expires is { } expires && expires <= now)
             {
                 // The MP4 answers 404 from this date on, so its .strm would be a broken episode.
-                expired.Add((season, number, FirstNonEmpty(video.Title, video.FriendlyName, $"{number}")));
+                expired.Add((season, number, slot.Part, FirstNonEmpty(video.Title, video.FriendlyName, $"{number}")));
                 reportProgress((index + 1d) / ordered.Count);
                 continue;
             }
@@ -149,6 +149,7 @@ public sealed partial class ThreeCatSyncService
                 video,
                 season,
                 number,
+                slot.Part,
                 cancellationToken).ConfigureAwait(false);
 
             if (episode is null)

@@ -9,6 +9,18 @@ namespace Jellyfin.Plugin.ThreeCat.Tests;
 public sealed class EpisodeNumberingTests
 {
     [Theory]
+    [InlineData("El cas de la sonata \"Clar de lluna\" (1a part)", "El cas de la sonata \"Clar de lluna\"")]
+    [InlineData("Els assassinats del creuer de luxe (2a part)", "Els assassinats del creuer de luxe")]
+    [InlineData("L'home misteriós (part 3)", "L'home misteriós")]
+    [InlineData("El mismo escenario (2/2)", "El mismo escenario")]
+    [InlineData("Los asesinatos del barco fantasma (2)", "Los asesinatos del barco fantasma")]
+    [InlineData("El detectiu més famós", "El detectiu més famós")]
+    public void StripPart_LeavesTheTitleTheTwoPartsShare(string title, string expected)
+    {
+        Assert.Equal(expected, EpisodeNumbering.StripPart(title));
+    }
+
+    [Theory]
     [InlineData("T22xC6 - Visita als inferns de l'amor (Episodi d'Oita)", 22, 6)]
     [InlineData("T1xC1 - El detectiu més famós d'aquest segle", 1, 1)]
     [InlineData("T 9 x C 4 - 03/10/2016", 9, 4)]

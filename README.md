@@ -300,6 +300,16 @@ dotnet run --project tools/CatalogDump     # volcado del catálogo a CSV: la ent
   lo que es una reemisión y no una fecha unos días fuera de sitio. La vista previa, además, dice por qué no se
   ha usado el contador cuando no se ha usado: si el proveedor lista menos de la mitad de los capítulos que 3Cat
   anuncia, o si los números se repiten.
+- Desde la 1.8.2.0 el contador deja de ir desfasado cuando 3Cat emite un episodio en varias partes. El
+  `capitol` cuenta emisiones de 3Cat y no episodios del original —en «Detectiu Conan», 183 de sus 385 vídeos son
+  una parte de algo—, así que desde el primer corte cada vídeo iba un episodio por delante y el error llegaba a
+  57 capítulos al final del catálogo. Los títulos de los dos catálogos se comparan palabra a palabra, con más
+  peso para la palabra rara que para la que sale en cien títulos, y cada vídeo cuyo título se parece al de un
+  episodio vota cuántas posiciones está desfasado el contador: los vecinos descartan la coincidencia suelta y el
+  escalón se coloca donde 3Cat partió el episodio. Con el desfase aplicado las dos listas se alinean en vez de
+  consultarse, y los vídeos que son la segunda o tercera parte de un episodio que el proveedor numera una sola
+  vez se escriben como `- part1` y `- part2` del mismo episodio, que es como Jellyfin los reproduce en orden. Si
+  los títulos no dicen nada, el contador se usa igual que antes.
 
 - La clave de TMDB es del usuario y se guarda en la configuración del plugin (nunca en el registro): la
   página acepta tanto una clave v3 como un token de lectura v4 y los distingue por su forma. Sin clave,
