@@ -17,7 +17,7 @@ internal static class LibraryIO
     /// It is what tells a folder of the plugin from a folder the user filled with something else: the
     /// cleanup only deletes a folder that holds nothing outside this list.
     /// </remarks>
-    internal static HashSet<string> ManagedExtensions { get; } = new(StringComparer.OrdinalIgnoreCase)
+    internal static IReadOnlySet<string> ManagedExtensions { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         ".strm", ".nfo", ".srt", ".jpg", ".jpeg", ".png", ".webp"
     };

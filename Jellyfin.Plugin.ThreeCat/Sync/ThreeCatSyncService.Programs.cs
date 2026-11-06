@@ -85,7 +85,7 @@ public sealed partial class ThreeCatSyncService
         // copy, so a library the user curates («Anime», «Infantil»...) keeps seeing the program without
         // taking over its files.
         var destination = configuration.DestinationPath.Trim();
-        var root = organized ? LibraryCategory.Folder(destination, category) : destination;
+        var root = LibraryLayout.ProgramFolder(destination, organized, category);
         var seriesPath = isMovie ? root : StrmLibrary.SeriesFolder(root, seriesTitle);
         var mirrorRoot = ResolveMirrorRoot(configuration, reference);
         var mirrorPath = mirrorRoot is null || isMovie ? mirrorRoot : StrmLibrary.SeriesFolder(mirrorRoot, seriesTitle);
