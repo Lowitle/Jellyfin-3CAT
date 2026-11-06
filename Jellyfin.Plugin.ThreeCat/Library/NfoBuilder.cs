@@ -96,6 +96,76 @@ internal static class NfoBuilder
     }
 
     /// <summary>
+    /// Builds the <c>movie.nfo</c> document.
+    /// </summary>
+    /// <param name="movie">Film metadata.</param>
+    /// <returns>The NFO content.</returns>
+    /// <remarks>
+    /// <para>
+    /// The document carries no provider id on purpose: the identity dataset of the plugin resolves the
+    /// ids of the <em>series</em> of 3Cat, so a TMDB id of the television record on a film would make
+    /// Jellyfin fetch the metadata of another work. The <c>threecat</c> id is the one the plugin uses to
+    /// recognise the folder as its own.
+    /// </para>
+    /// <para>
+    /// 3Cat publishes no production year, so the year is the one of the broadcast: it is what names the
+    /// folder (<c>Título (2021)</c>) and what Jellyfin shows next to the title.
+    /// </para>
+    /// </remarks>
+    internal static string BuildMovie(LibraryMovie movie)
+    {
+        ArgumentNullException.ThrowIfNull(movie);
+
+        var root = new XElement(
+            "movie",
+            new XElement("title", movie.Title),
+            new XElement("sorttitle", movie.Title),
+            new XElement(
+                "plot",
+                string.IsNullOrWhiteSpace(movie.Plot) ? $"Película de {movie.Title} en 3Cat." : movie.Plot));
+
+        if (movie.Year is > 0)
+        {
+            root.Add(new XElement("year", movie.Year.Value.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        if (movie.PremiereDate is { } premiere)
+        {
+            root.Add(new XElement("premiered", premiere.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
+        }
+
+        if (movie.Runtime is { } runtime && runtime.TotalMinutes >= 1)
+        {
+            root.Add(new XElement(
+                "runtime",
+                ((int)Math.Round(runtime.TotalMinutes, MidpointRounding.AwayFromZero))
+                    .ToString(CultureInfo.InvariantCulture)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(movie.Country))
+        {
+            root.Add(new XElement("country", movie.Country.Trim()));
+        }
+
+        root.Add(new XElement("studio", "3Cat"));
+
+        foreach (var genre in Distinct(movie.Genres))
+        {
+            root.Add(new XElement("genre", genre));
+        }
+
+        foreach (var tag in Distinct(movie.Tags))
+        {
+            root.Add(new XElement("tag", tag));
+        }
+
+        root.Add(new XElement("tag", "3Cat"));
+        root.Add(new XElement("uniqueid", new XAttribute("type", "threecat"), new XAttribute("default", "true"), movie.ProgramId));
+
+        return Serialize(root);
+    }
+
+    /// <summary>
     /// Builds the NFO document of an episode.
     /// </summary>
     /// <param name="seriesTitle">Series title.</param>

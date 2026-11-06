@@ -6,6 +6,7 @@ using Jellyfin.Plugin.ThreeCat.Sync;
 using Jellyfin.Plugin.ThreeCat.Tasks;
 using Jellyfin.Plugin.ThreeCat.ThreeCat;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -278,32 +279,68 @@ public sealed class ThreeCatPlayController : ControllerBase
     }
 
     /// <summary>
-    /// Creates a «Programas de TV» library that points at the destination folder, or adds the folder
-    /// to the library that already has that name.
+    /// Creates the libraries that point at the destination folder, or adds the folders to the libraries
+    /// that already have that name.
     /// </summary>
     /// <remarks>
     /// The status is always returned with HTTP 200 and a <c>success</c> flag, so the configuration page
-    /// can show the reason of a rejection instead of a generic error.
+    /// can show the reason of a rejection instead of a generic error. With the organised layout two
+    /// libraries are prepared: a «Programas de TV» one with the folder of each kind of series, and a
+    /// «Películas» one with the folder of the films.
     /// </remarks>
     /// <param name="path">Destination folder; the configured one when omitted.</param>
     /// <param name="name">Library name; «3Cat» when omitted.</param>
+    /// <param name="organize">
+    /// Whether the folders of the layout are prepared; the configured value when omitted.
+    /// </param>
     /// <returns>The result of the operation.</returns>
     [HttpPost("Library/Create")]
-    public ActionResult<LibraryProvisionStatus> CreateLibrary(
+    public ActionResult<ThreeCatLibraryProvisionStatus> CreateLibrary(
         [FromQuery] string? path,
-        [FromQuery] string? name)
+        [FromQuery] string? name,
+        [FromQuery] bool? organize)
     {
         var configuration = Plugin.Instance?.Configuration ?? new PluginConfiguration();
-        var target = string.IsNullOrWhiteSpace(path) ? configuration.DestinationPath : path;
+        var root = string.IsNullOrWhiteSpace(path) ? configuration.DestinationPath : path.Trim();
+        var organized = organize ?? configuration.OrganizeByKind;
+        var layout = LibraryLayout.Resolve(root, organized);
+        var seriesName = string.IsNullOrWhiteSpace(name)
+            ? LibraryProvisioner.DefaultLibraryName
+            : name.Trim();
 
-        var status = LibraryProvisioner.Provision(_libraryManager, target, name, _logger, _libraryMonitor);
+        var results = new List<LibraryProvisionStatus>
+        {
+            LibraryProvisioner.Provision(
+                _libraryManager,
+                new LibraryProvisionRequest(root, layout.Series, seriesName, CollectionTypeOptions.tvshows),
+                _logger,
+                _libraryMonitor)
+        };
+
+        if (layout.Movies.Count > 0)
+        {
+            results.Add(LibraryProvisioner.Provision(
+                _libraryManager,
+                new LibraryProvisionRequest(
+                    root,
+                    layout.Movies,
+                    seriesName + " · Películas",
+                    CollectionTypeOptions.movies),
+                _logger,
+                _libraryMonitor));
+        }
+
+        var status = new ThreeCatLibraryProvisionStatus(
+            results.All(result => result.Success),
+            [.. results.Select(result => result.LibraryName).OfType<string>()],
+            [.. results.SelectMany(result => result.LibraryPaths)],
+            string.Join(" ", results.Select(result => result.Message)));
 
         if (status.Success)
         {
             _logger.LogInformation(
-                "3Cat: biblioteca {Library} → {Outcome} ({Message})",
-                status.LibraryName,
-                status.Outcome,
+                "3Cat: bibliotecas {Libraries} → {Message}",
+                string.Join(", ", status.LibraryNames),
                 status.Message);
         }
         else
@@ -904,6 +941,19 @@ public sealed record ThreeCatLibrary(
     string Name,
     string? CollectionType,
     IReadOnlyList<string> Locations);
+
+/// <summary>
+/// Result of the «create library» request, with every library the plugin prepared.
+/// </summary>
+/// <param name="Success">Whether every folder ended up in a library.</param>
+/// <param name="LibraryNames">Libraries that were created or updated.</param>
+/// <param name="LibraryPaths">Folders the libraries index after the request.</param>
+/// <param name="Message">Message shown to the user.</param>
+public sealed record ThreeCatLibraryProvisionStatus(
+    bool Success,
+    IReadOnlyList<string> LibraryNames,
+    IReadOnlyList<string> LibraryPaths,
+    string Message);
 
 /// <summary>
 /// State of the identity dataset, as shown by the configuration page.

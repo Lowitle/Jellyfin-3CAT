@@ -197,6 +197,65 @@ public class NfoBuilderTests
     }
 
     [Fact]
+    public void BuildMovie_WritesTheFieldsJellyfinReads()
+    {
+        var movie = new LibraryMovie
+        {
+            Title = "Ermessenda",
+            ProgramId = "119987484",
+            Year = 2011,
+            Plot = "La comtessa Ermessenda de Carcassona.",
+            Runtime = TimeSpan.FromMinutes(120),
+            PremiereDate = new DateTimeOffset(2011, 5, 1, 22, 0, 0, TimeSpan.Zero),
+            Genres = ["Cinema", "Ficció històrica"],
+            Tags = ["Cinema"],
+            Country = " ES "
+        };
+
+        var root = XDocument.Parse(NfoBuilder.BuildMovie(movie)).Root!;
+
+        Assert.Equal("movie", root.Name.LocalName);
+        Assert.Equal("Ermessenda", root.Element("title")!.Value);
+        Assert.Equal("La comtessa Ermessenda de Carcassona.", root.Element("plot")!.Value);
+        Assert.Equal("2011", root.Element("year")!.Value);
+        Assert.Equal("2011-05-01", root.Element("premiered")!.Value);
+        Assert.Equal("120", root.Element("runtime")!.Value);
+        Assert.Equal("ES", root.Element("country")!.Value);
+        Assert.Equal("3Cat", root.Element("studio")!.Value);
+        Assert.Equal(["Cinema", "Ficció històrica"], root.Elements("genre").Select(element => element.Value));
+        Assert.Equal(["Cinema", "3Cat"], root.Elements("tag").Select(element => element.Value));
+    }
+
+    [Fact]
+    public void BuildMovie_WritesNoProviderId()
+    {
+        // The identity dataset resolves the ids of the series of 3Cat: a TMDB id of the television record
+        // on a film would make Jellyfin fetch the metadata of another work.
+        var movie = new LibraryMovie { Title = "Ermessenda", ProgramId = "119987484" };
+
+        var root = XDocument.Parse(NfoBuilder.BuildMovie(movie)).Root!;
+
+        var uniqueId = root.Elements("uniqueid").Single();
+        Assert.Equal("threecat", uniqueId.Attribute("type")!.Value);
+        Assert.Equal("true", uniqueId.Attribute("default")!.Value);
+        Assert.Equal("119987484", uniqueId.Value);
+        Assert.Single(root.Elements("uniqueid"));
+    }
+
+    [Fact]
+    public void BuildMovie_WithoutAYearOrADateWritesNoDate()
+    {
+        var movie = new LibraryMovie { Title = "Pa negre", ProgramId = "1" };
+
+        var root = XDocument.Parse(NfoBuilder.BuildMovie(movie)).Root!;
+
+        Assert.Null(root.Element("year"));
+        Assert.Null(root.Element("premiered"));
+        Assert.Null(root.Element("runtime"));
+        Assert.Equal("Película de Pa negre en 3Cat.", root.Element("plot")!.Value);
+    }
+
+    [Fact]
     public void BuildSeries_WithTheDefaultSourceKeepsTheOutputOfThePreviousVersion()
     {
         var series = new LibrarySeries { Title = "Merlí", ProgramId = "42" };

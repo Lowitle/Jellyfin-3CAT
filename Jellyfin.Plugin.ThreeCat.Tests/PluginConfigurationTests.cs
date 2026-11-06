@@ -16,7 +16,11 @@ public sealed class PluginConfigurationTests
 
         Assert.Equal(MetadataSource.ThreeCat, configuration.MetadataSource);
         Assert.Equal(OpenTvIdsClient.DefaultUrl, configuration.OpenTvIdsUrl);
-        Assert.Equal(3, PluginConfiguration.CurrentVersion);
+        Assert.Equal(4, PluginConfiguration.CurrentVersion);
+
+        // A fresh installation writes the programs one folder per kind: the layout of 1.9.0.0 is the one
+        // the page shows and the one «Crear biblioteca» prepares out of the box.
+        Assert.True(configuration.OrganizeByKind);
 
         // Without a key and with a language, the plugin is in the state of a fresh installation: TMDB is
         // never read until the user asks for it.

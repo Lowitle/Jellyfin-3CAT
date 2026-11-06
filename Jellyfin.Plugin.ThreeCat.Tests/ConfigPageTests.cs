@@ -75,6 +75,18 @@ public sealed class ConfigPageTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Page_SendsTheOrganisationOfTheLibrary()
+    {
+        // The checkbox decides whether the server prepares the folders of the layout, and the page has to
+        // forward it or «Crear biblioteca» would use whatever was saved the last time.
+        var page = ReadPage();
+
+        Assert.Contains("id=\"ThreeCatOrganizeByKind\"", page, StringComparison.Ordinal);
+        Assert.Contains("organize: organized ? 'true' : 'false'", page, StringComparison.Ordinal);
+        Assert.Contains("config.OrganizeByKind = document.querySelector('#ThreeCatOrganizeByKind').checked;", page, StringComparison.Ordinal);
+    }
+
     private static string ReadPage()
     {
         var assembly = typeof(Plugin).Assembly;

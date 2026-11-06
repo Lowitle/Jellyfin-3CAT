@@ -316,6 +316,22 @@
                         </div>
                     </div>
 
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatOrganizeByKind" />
+                        <span>Organizar los programas por tipo</span>
+                    </label>
+                    <div class="fieldDescription">
+                        Escribe cada programa en una subcarpeta de la carpeta de destino —«Series», «Documentals»,
+                        «Anime», «Infantil», «Programes TV» y «Movies»— de modo que cada tipo pueda ser una
+                        biblioteca propia. «Crear biblioteca» prepara entonces una biblioteca de «Programas de TV»
+                        con las carpetas de las series y una de «Películas» con «Movies», y las películas se
+                        escriben como películas (<code>movie.nfo</code>, «Título (Año)») en lugar de como una serie
+                        de un episodio. Una biblioteca curada («Anime», «Infantil»…) puede apuntar a una sola
+                        subcarpeta sin duplicar ningún archivo. La primera actualización después de activarlo mueve
+                        cada programa a su carpeta: Jellyfin los vuelve a leer y se pierde una vez el estado
+                        «visto».
+                    </div>
+
                     <div class="threeCatActions">
                         <button is="emby-button" type="button" id="ThreeCatCheckPath" class="raised">
                             <span>Comprobar carpeta</span>
@@ -328,8 +344,10 @@
                     <div class="fieldDescription" id="ThreeCatLibraryStatus"></div>
                     <div class="fieldDescription">
                         «Crear biblioteca» añade la carpeta de destino a una biblioteca de tipo «Programas de TV»
-                        que lee los <code>.nfo</code> locales. Si ya existe una biblioteca llamada «3Cat», se le
-                        añade la carpeta en lugar de crear otra.
+                        que lee los <code>.nfo</code> locales; con la organización por tipo añade las subcarpetas
+                        de las series a esa biblioteca y crea una de «Películas» con la de las películas. Si ya
+                        existe una biblioteca llamada «3Cat», se le añaden las carpetas en lugar de crear otra, y
+                        la carpeta de destino que indexaba antes se sustituye por sus subcarpetas.
                     </div>
                 </div>
 
@@ -2115,6 +2133,7 @@
 
             function threeCatCreateLibrary() {
                 var path = document.querySelector('#ThreeCatDestinationPath').value.trim();
+                var organized = document.querySelector('#ThreeCatOrganizeByKind').checked;
 
                 if (path.length === 0) {
                     threeCatLibraryStatus('Escribe la carpeta de destino antes de crear la biblioteca.');
@@ -2125,7 +2144,11 @@
 
                 ApiClient.ajax({
                     type: 'POST',
-                    url: threeCatUrl('Library/Create', { path: path, name: '3Cat' }),
+                    url: threeCatUrl('Library/Create', {
+                        path: path,
+                        name: '3Cat',
+                        organize: organized ? 'true' : 'false'
+                    }),
                     dataType: 'json'
                 }).then(function (result) {
                     Dashboard.hideLoadingMsg();
@@ -2211,6 +2234,8 @@
                         threeCatField(config, 'separateAnime') !== false;
                     document.querySelector('#ThreeCatSeparateChildren').checked =
                         threeCatField(config, 'separateChildren') !== false;
+                    document.querySelector('#ThreeCatOrganizeByKind').checked =
+                        threeCatField(config, 'organizeByKind') !== false;
                     document.querySelector('#ThreeCatPruneExpired').checked =
                         threeCatField(config, 'pruneExpired') !== false;
                     document.querySelector('#ThreeCatDeleteObsolete').checked =
@@ -2262,6 +2287,7 @@
                     config.ClassifyPrograms = document.querySelector('#ThreeCatClassifyPrograms').checked;
                     config.SeparateAnime = document.querySelector('#ThreeCatSeparateAnime').checked;
                     config.SeparateChildren = document.querySelector('#ThreeCatSeparateChildren').checked;
+                    config.OrganizeByKind = document.querySelector('#ThreeCatOrganizeByKind').checked;
                     config.PruneExpired = document.querySelector('#ThreeCatPruneExpired').checked;
                     config.DeleteObsolete = document.querySelector('#ThreeCatDeleteObsolete').checked;
 

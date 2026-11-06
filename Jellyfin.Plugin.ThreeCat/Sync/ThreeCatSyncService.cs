@@ -76,6 +76,13 @@ public sealed partial class ThreeCatSyncService
         LibraryPath.EnsureWritableRoot(configuration.DestinationPath);
         _logger.LogInformation("3Cat: carpeta de destino {Path}", configuration.DestinationPath.Trim());
 
+        if (configuration.OrganizeByKind)
+        {
+            _logger.LogInformation(
+                "3Cat: los programas se escriben organizados por tipo ({Folders})",
+                string.Join(", ", LibraryCategory.All));
+        }
+
         // The identities are only needed by the programs that number with a provider; a run with the
         // default source must not touch the network for a dataset it will not use.
         var dataset = await RefreshCrossIdsAsync(configuration, cancellationToken).ConfigureAwait(false);

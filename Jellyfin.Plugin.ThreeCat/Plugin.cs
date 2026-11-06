@@ -91,6 +91,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             changed = true;
         }
 
+        // The folder layout of 1.9.0.0 moves every program to a folder of its kind, and Jellyfin reads the
+        // moved series again: a configuration written by an older build keeps the flat destination folder
+        // until the user asks for the change from the page. A fresh installation starts organised.
+        if (configuration.ConfigurationVersion < PluginConfiguration.CurrentVersion)
+        {
+            configuration.OrganizeByKind = false;
+        }
+
         if (configuration.ConfigurationVersion < PluginConfiguration.CurrentVersion)
         {
             configuration.ConfigurationVersion = PluginConfiguration.CurrentVersion;

@@ -117,10 +117,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// the metadata source (<see cref="MetadataSource"/>, the dataset URL, the manual ids of a program and
     /// the TMDB key and language it is read with) and the source each program was written with; its
     /// defaults keep the behaviour of version 2 —3Cat numbering and the plugin's own metadata— so the
-    /// migration is only a version stamp. The XML serializer ignores the elements of a configuration
-    /// written by an older build.
+    /// migration is only a version stamp. Version 4 adds <see cref="OrganizeByKind"/>, which is turned
+    /// off when a configuration written by an older build is migrated: a plugin update must never move
+    /// the library of the user behind its back. The XML serializer ignores the elements of a
+    /// configuration written by an older build.
     /// </remarks>
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     /// <summary>
     /// Version of the file naming scheme written by this build.
@@ -149,6 +151,7 @@ public class PluginConfiguration : BasePluginConfiguration
         ClassifyPrograms = true;
         SeparateAnime = true;
         SeparateChildren = true;
+        OrganizeByKind = true;
         MetadataSource = MetadataSource.ThreeCat;
         OpenTvIdsUrl = OpenTvIdsClient.DefaultUrl;
         TmdbApiKey = string.Empty;
@@ -281,6 +284,27 @@ public class PluginConfiguration : BasePluginConfiguration
     /// The catalog is read newest first, so a positive value keeps the most recent emissions.
     /// </remarks>
     public int MaxItemsPerProgram { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the programs are written one folder per kind of program
+    /// («Series», «Documentals», «Anime», «Infantil», «Programes TV» and «Movies»).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// With the layout on, the destination folder holds a folder per kind and Jellyfin indexes each of
+    /// them: the «3Cat» library covers the folders of the series, a second library of type «Películas»
+    /// covers the films, and a curated library («Anime», «Infantil»...) can point at one folder without a
+    /// copy. The films stop being one-episode series and are written as movies
+    /// (<c>movie.nfo</c>, <c>Título (Año)</c>).
+    /// </para>
+    /// <para>
+    /// The folders are created when the library is prepared, and the first refresh after turning the
+    /// layout on moves each program to its folder and deletes the old one —only when the folder is one of
+    /// the plugin for that program—. Jellyfin reads the moved series again, which is why the option is
+    /// off when a configuration written before 1.9.0.0 is migrated: the change has to be asked for.
+    /// </para>
+    /// </remarks>
+    public bool OrganizeByKind { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the programs are classified by the format 3Cat files

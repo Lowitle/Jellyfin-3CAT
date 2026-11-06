@@ -66,14 +66,29 @@ public sealed partial class ThreeCatSyncService
         var usable = page.Items.Where(video => !string.IsNullOrWhiteSpace(video.Id)).ToList();
         var seriesTitle = ResolveSeriesTitle(usable, reference, programId);
 
-        // The series is always written in the destination folder of the plugin, which is the library the
-        // plugin owns and the one Jellyfin reimports after a migration. The folder a program can be
-        // assigned to is a second copy, so a library the user curates («Anime», «Infantil»...) keeps
-        // seeing the program without taking over its files.
-        var root = configuration.DestinationPath.Trim();
-        var seriesPath = StrmLibrary.SeriesFolder(root, seriesTitle);
+        // The kind of program decides where it is written and, for a film, the shape of every file, so it
+        // is resolved before touching the disk. The classification is a sweep of the facets of the search
+        // endpoint, which the client caches: the preview of the page reads the same data.
+        var (classification, originalTitle) = await ClassifyProgramAsync(
+            configuration,
+            programId,
+            usable,
+            cancellationToken).ConfigureAwait(false);
+
+        var organized = configuration.OrganizeByKind;
+        var category = LibraryCategory.Resolve(classification);
+        var isMovie = organized && string.Equals(category, LibraryCategory.Movies, StringComparison.Ordinal);
+
+        // The program is always written in the destination folder of the plugin, which is the library the
+        // plugin owns and the one Jellyfin reimports after a migration; with the organised layout it is the
+        // folder of its kind under that destination. The folder a program can be assigned to is a second
+        // copy, so a library the user curates («Anime», «Infantil»...) keeps seeing the program without
+        // taking over its files.
+        var destination = configuration.DestinationPath.Trim();
+        var root = organized ? LibraryCategory.Folder(destination, category) : destination;
+        var seriesPath = isMovie ? root : StrmLibrary.SeriesFolder(root, seriesTitle);
         var mirrorRoot = ResolveMirrorRoot(configuration, reference);
-        var mirrorPath = mirrorRoot is null ? null : StrmLibrary.SeriesFolder(mirrorRoot, seriesTitle);
+        var mirrorPath = mirrorRoot is null || isMovie ? mirrorRoot : StrmLibrary.SeriesFolder(mirrorRoot, seriesTitle);
 
         // 1.5.0.0 renames every episode file, so a folder written by an older build holds the same
         // episodes under the old names. It is deleted before writing it again — only when it is a
@@ -96,6 +111,24 @@ public sealed partial class ThreeCatSyncService
             .OrderBy(video => video.Broadcast ?? video.Published ?? DateTimeOffset.MinValue)
             .ThenBy(video => video.Id, StringComparer.Ordinal)
             .ToList();
+
+        // A film is not numbered: each title of the program is a film of its own, and the parts 3Cat splits
+        // one in are versions of the same folder. The branch is taken before the numbering, so a program
+        // of cinema never asks the providers for an episode list it is not going to use.
+        if (isMovie)
+        {
+            return await SyncMoviesAsync(
+                configuration,
+                reference,
+                programId,
+                seriesTitle,
+                classification,
+                ordered,
+                root,
+                mirrorRoot,
+                reportProgress,
+                cancellationToken).ConfigureAwait(false);
+        }
 
         // The air order is what the specials and the programs without numbering are numbered with,
         // so the oldest video of a season keeps its number when 3Cat repeats one.
@@ -197,14 +230,6 @@ public sealed partial class ThreeCatSyncService
 
             return 0;
         }
-
-        // The kind of program goes first in the genres of the series: Jellyfin filters the library by
-        // them, so «Documental» or «Animació» is a filter the user gets for free.
-        var (classification, originalTitle) = await ClassifyProgramAsync(
-            configuration,
-            programId,
-            usable,
-            cancellationToken).ConfigureAwait(false);
 
         // Changing the source of a program rewrites its folder: the numbering travels inside the file name,
         // so the files of the old numbering would stay next to the new ones. A folder written before
@@ -456,7 +481,7 @@ public sealed partial class ThreeCatSyncService
             return;
         }
 
-        if (!StrmLibrary.TryDeleteSeriesFolder(previous, programId))
+        if (LibraryCleanup.TryDeleteProgram(previous, programId) == 0)
         {
             _logger.LogInformation(
                 "3Cat: «{Series}» se escribió antes en {Previous} ({Library}); no se elimina porque no es una "

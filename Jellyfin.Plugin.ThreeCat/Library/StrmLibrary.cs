@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Text;
-using System.Xml.Linq;
 
 namespace Jellyfin.Plugin.ThreeCat.Library;
 
@@ -9,16 +7,6 @@ namespace Jellyfin.Plugin.ThreeCat.Library;
 /// </summary>
 public static class StrmLibrary
 {
-    private static readonly UTF8Encoding Utf8NoBom = new(false);
-
-    /// <summary>
-    /// Extensions of the files this class writes, plus the artwork the synchronization saves next to them.
-    /// </summary>
-    private static readonly HashSet<string> ManagedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".strm", ".nfo", ".srt", ".jpg", ".jpeg", ".png", ".webp"
-    };
-
     /// <summary>
     /// Gets the folder that holds a series.
     /// </summary>
@@ -62,7 +50,7 @@ public static class StrmLibrary
 
         if (options.WriteNfo)
         {
-            filesWritten += WriteText(
+            filesWritten += LibraryIO.WriteText(
                 Path.Combine(seriesFolder, "tvshow.nfo"),
                 NfoBuilder.BuildSeries(series),
                 written) ? 1 : 0;
@@ -82,11 +70,11 @@ public static class StrmLibrary
                 usedNames);
 
             var strmPath = Path.Combine(seasonFolder, baseName + ".strm");
-            filesWritten += WriteText(strmPath, episode.Url + "\n", written) ? 1 : 0;
+            filesWritten += LibraryIO.WriteText(strmPath, episode.Url + "\n", written) ? 1 : 0;
 
             if (options.WriteNfo)
             {
-                filesWritten += WriteText(
+                filesWritten += LibraryIO.WriteText(
                     Path.Combine(seasonFolder, baseName + ".nfo"),
                     NfoBuilder.BuildEpisode(series.Title, episode),
                     written) ? 1 : 0;
@@ -94,10 +82,10 @@ public static class StrmLibrary
 
             if (options.WriteSubtitles)
             {
-                foreach (var subtitle in DistinctLanguages(episode.Subtitles))
+                foreach (var subtitle in LibraryNaming.CleanSubtitles(episode.Subtitles))
                 {
                     var srtPath = Path.Combine(seasonFolder, $"{baseName}.{subtitle.Language}.srt");
-                    filesWritten += WriteText(srtPath, ToCrlf(subtitle.Srt), written) ? 1 : 0;
+                    filesWritten += LibraryIO.WriteText(srtPath, LibraryIO.ToCrlf(subtitle.Srt), written) ? 1 : 0;
                 }
             }
 
@@ -107,45 +95,6 @@ public static class StrmLibrary
         var removed = options.DeleteObsolete ? DeleteObsolete(seriesFolder, written) : 0;
 
         return new LibraryWriteResult(seriesFolder, count, filesWritten, removed);
-    }
-
-    /// <summary>
-    /// Keeps the first subtitle of every language so two 3Cat tracks of the same language never
-    /// write the same file twice.
-    /// </summary>
-    /// <param name="subtitles">Subtitles of the episode.</param>
-    /// <returns>The subtitles to write, one per language.</returns>
-    private static IEnumerable<LibrarySubtitle> DistinctLanguages(IReadOnlyList<LibrarySubtitle>? subtitles)
-    {
-        if (subtitles is null)
-        {
-            yield break;
-        }
-
-        var languages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var subtitle in subtitles)
-        {
-            if (string.IsNullOrWhiteSpace(subtitle.Srt))
-            {
-                continue;
-            }
-
-            var language = string.IsNullOrWhiteSpace(subtitle.Language) ? "ca" : subtitle.Language.Trim().ToLowerInvariant();
-
-            // The language ends up in a file name: keep only ASCII letters and digits.
-            language = new string(language.Where(char.IsAsciiLetterOrDigit).ToArray());
-            if (language.Length == 0)
-            {
-                // 3Cat publishes practically everything in Catalan, so it is the least wrong guess.
-                language = "ca";
-            }
-
-            if (languages.Add(language))
-            {
-                yield return subtitle with { Language = language };
-            }
-        }
     }
 
     /// <summary>
@@ -163,39 +112,20 @@ public static class StrmLibrary
     /// </remarks>
     public static bool TryDeleteSeriesFolder(string? folder, string? programId)
     {
-        if (string.IsNullOrWhiteSpace(folder) || string.IsNullOrWhiteSpace(programId))
+        var path = LibraryIO.Normalize(folder);
+        if (path is null || string.IsNullOrWhiteSpace(programId) || !Directory.Exists(path))
         {
             return false;
         }
 
-        string path;
-        string nfo;
-
-        try
-        {
-            path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder.Trim()));
-            nfo = Path.Combine(path, "tvshow.nfo");
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return false;
-        }
-
-        if (!Directory.Exists(path) || !File.Exists(nfo))
+        if (!LibraryIO.BelongsTo(Path.Combine(path, "tvshow.nfo"), programId))
         {
             return false;
         }
 
         try
         {
-            if (!BelongsTo(nfo, programId.Trim()))
-            {
-                return false;
-            }
-
-            if (Directory
-                .EnumerateFiles(path, "*", SearchOption.AllDirectories)
-                .Any(file => !ManagedExtensions.Contains(Path.GetExtension(file))))
+            if (!LibraryIO.HoldsOnlyManagedFiles(path))
             {
                 return false;
             }
@@ -203,31 +133,10 @@ public static class StrmLibrary
             Directory.Delete(path, recursive: true);
             return true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return false;
         }
-    }
-
-    /// <summary>
-    /// Tells whether a <c>tvshow.nfo</c> names a 3Cat program in its <c>threecat</c> unique id.
-    /// </summary>
-    /// <param name="nfo">Path of the <c>tvshow.nfo</c>.</param>
-    /// <param name="programId">Program id.</param>
-    /// <returns>Whether the file belongs to the program.</returns>
-    private static bool BelongsTo(string nfo, string programId)
-    {
-        var id = XDocument
-            .Load(nfo)
-            .Descendants("uniqueid")
-            .FirstOrDefault(element => string.Equals(
-                (string?)element.Attribute("type"),
-                "threecat",
-                StringComparison.OrdinalIgnoreCase))
-            ?.Value
-            .Trim();
-
-        return string.Equals(id, programId, StringComparison.Ordinal);
     }
 
     private static string Unique(string baseName, HashSet<string> used)
@@ -246,29 +155,6 @@ public static class StrmLibrary
             }
         }
     }
-
-    private static bool WriteText(string path, string content, HashSet<string> written)
-    {
-        written.Add(path);
-
-        if (File.Exists(path) && string.Equals(File.ReadAllText(path), content, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        File.WriteAllText(path, content, Utf8NoBom);
-        return true;
-    }
-
-    private static string ToCrlf(string value)
-        => value.Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace("\n", "\r\n", StringComparison.Ordinal);
 
     private static int DeleteObsolete(string seriesFolder, HashSet<string> written)
     {
