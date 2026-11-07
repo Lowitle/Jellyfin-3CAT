@@ -5,7 +5,8 @@ using System.Text.RegularExpressions;
 namespace Jellyfin.Plugin.ThreeCat.ThreeCat;
 
 /// <summary>
-/// Reads the references the configuration page accepts for a program of 3Cat and for a series of TMDB.
+/// Reads the references the configuration page accepts for a program of 3Cat and for a series of TMDB or
+/// TVDB.
 /// </summary>
 /// <remarks>
 /// 3Cat publishes no endpoint that maps the URL of a program page to its <c>programatv_id</c>, but the
@@ -70,6 +71,31 @@ public static partial class ProgramReference
         }
 
         var url = TmdbUrlRegex().Match(value);
+        if (url.Success)
+        {
+            return url.Groups["id"].Value;
+        }
+
+        return value.All(char.IsAsciiDigit) ? value : null;
+    }
+
+    /// <summary>
+    /// Reads the id of a series of TVDB out of a reference.
+    /// </summary>
+    /// <param name="reference">Reference typed by the user.</param>
+    /// <returns>The numeric id, or <c>null</c> when the reference holds none.</returns>
+    /// <remarks>
+    /// <c>https://thetvdb.com/series/295068</c> and <c>295068</c> both give <c>295068</c>.
+    /// </remarks>
+    public static string? TvdbId(string? reference)
+    {
+        var value = reference?.Trim();
+        if (string.IsNullOrEmpty(value))
+        {
+            return null;
+        }
+
+        var url = TvdbUrlRegex().Match(value);
         if (url.Success)
         {
             return url.Groups["id"].Value;
@@ -271,6 +297,11 @@ public static partial class ProgramReference
         @"themoviedb\.org/(?:tv|movie)/(?<id>\d+)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TmdbUrlRegex();
+
+    [GeneratedRegex(
+        @"thetvdb\.com/series/(?<id>\d+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex TvdbUrlRegex();
 }
 
 /// <summary>

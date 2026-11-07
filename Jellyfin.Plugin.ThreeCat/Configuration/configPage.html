@@ -326,9 +326,10 @@
                         el tipo que el plugin lee del catálogo de 3Cat —«Anime», «Infantil», «Documentals»,
                         «Series» o «Programes TV»— y permite fijarlo a mano cuando la ficha de 3Cat no lo dice
                         bien: la carpeta, y por tanto la biblioteca curada que la indexe, sigue la elección,
-                        mientras que los géneros de la serie siguen saliendo del catálogo. El id de TMDB y las
-                        anclas del emparejamiento se detectan solos con el dataset de identificadores: solo se
-                        escriben en el <code>tvshow.nfo</code> cuando el programa se numera con TMDB.
+                        mientras que los géneros de la serie siguen saliendo del catálogo. El id de TMDB, el de
+                        TVDB y las anclas del emparejamiento se detectan solos con el dataset de
+                        identificadores: solo se escriben en el <code>tvshow.nfo</code> cuando el programa se
+                        numera con ese proveedor.
                     </div>
 
                     <div id="ThreeCatCatalog"></div>
@@ -454,7 +455,8 @@
                         <select is="emby-select" id="ThreeCatMetadataSource">
                             <option value="0">Catálogo de 3Cat (numeración de 3Cat)</option>
                             <option value="1">TMDB (numeración de TMDB)</option>
-                            <option value="2" disabled>TVDB (próxima versión)</option>
+                            <option value="2">TVDB (numeración de TVDB)</option>
+                            <option value="3">TVDB absoluta (temporada única)</option>
                         </select>
                         <div class="fieldDescription">
                             Con «Catálogo de 3Cat», la de siempre, el plugin escribe la numeración que 3Cat
@@ -466,6 +468,13 @@
                             cada episodio. Si el dataset no resuelve un id, si no hay clave o si el
                             emparejamiento no llega a la mitad de los vídeos, la serie se queda con la
                             numeración de 3Cat.
+                        </div>
+
+                        <div class="fieldDescription">
+                            Con «TVDB» el emparejamiento es el mismo, pero la temporada y el episodio son los de
+                            TVDB y el <code>tvshow.nfo</code> escribe su id. «TVDB absoluta» numera el programa
+                            entero como una sola temporada con el <code>absoluteNumber</code> de TVDB, que es
+                            como se archiva el anime cuando la emisión y la obra no coinciden.
                         </div>
                     </div>
 
@@ -489,6 +498,27 @@
                         </div>
                     </div>
 
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatTvdbApiKey">Clave de API de TVDB</label>
+                        <input is="emby-input" type="password" id="ThreeCatTvdbApiKey" autocomplete="off" />
+                        <div class="fieldDescription">
+                            Clave de tu cuenta de TheTVDB (panel de cuenta → claves de API). Se guarda en la
+                            configuración del plugin, no se escribe nunca en el registro y solo se envía a TVDB,
+                            donde se cambia por un token de sesión que dura un mes. TheTVDB exige suscripción o
+                            licencia con atribución para este uso, así que la clave la pone cada usuario. Sin
+                            clave, las series se siguen numerando con 3Cat.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ThreeCatTvdbPin">PIN de suscriptor de TVDB</label>
+                        <input is="emby-input" type="text" id="ThreeCatTvdbPin" autocomplete="off" />
+                        <div class="fieldDescription">
+                            Solo si tu clave de TVDB es de suscriptor: TheTVDB pide el PIN en el mismo inicio de
+                            sesión que la clave. Déjalo vacío con una licencia con atribución.
+                        </div>
+                    </div>
+
                     <div class="fieldDescription">
                         <strong>Cambiar la fuente de un programa renumera su carpeta:</strong> Jellyfin vuelve a
                         importar esos episodios y se pierde el «visto» de esa serie. El plugin solo borra la
@@ -502,30 +532,40 @@
                     <div class="threeCatActions">
                         <input is="emby-input" type="text" id="ThreeCatMappingProgram"
                                placeholder="120086583, https://www.3cat.cat/3cat/… o El detectiu Conan" />
-                        <input is="emby-input" type="text" id="ThreeCatMappingTmdb"
-                               placeholder="Id o URL de TMDB: 30983" />
+                        <input is="emby-input" type="text" id="ThreeCatMappingProviderId"
+                               placeholder="Id o URL del proveedor: 30983 (TMDB) o 295068 (TVDB)" />
+                        <select is="emby-select" id="ThreeCatMappingSource"
+                                title="Fuente de la vista previa">
+                            <option value="">La fuente configurada</option>
+                            <option value="tmdb">TMDB</option>
+                            <option value="tvdb">TVDB</option>
+                            <option value="tvdb-absolute">TVDB absoluta</option>
+                        </select>
                         <input is="emby-input" type="text" id="ThreeCatMappingAnchors"
                                placeholder="Anclas: T22xC6=906 (opcional)" />
                         <button is="emby-button" type="button" id="ThreeCatMappingRun" class="raised">
-                            <span>Ver el emparejamiento con TMDB</span>
+                            <span>Ver el emparejamiento</span>
                         </button>
                     </div>
 
                     <div class="fieldDescription">
                         El primer campo es el programa de 3Cat: su id, la URL de su página, su título o el id
-                        de cualquiera de sus vídeos. El segundo es el id de la serie en TMDB (o la URL de su
-                        ficha) y manda sobre el del dataset y sobre el de la tabla de programas. El tercero son
+                        de cualquiera de sus vídeos. El segundo es el id de la serie en el proveedor (o la URL
+                        de su ficha) y manda sobre el del dataset y sobre el de la tabla de programas; importa
+                        sobre todo con «La fuente configurada», porque el plugin mira el id del proveedor que
+                        esa fuente usa. El tercero elige la fuente de la vista previa, para probar TVDB —o su
+                        numeración absoluta— sin cambiar antes la del programa. El cuarto son
                         las anclas, y casi nunca hacen falta: el <code>capitol</code> que publica 3Cat numera
                         el programa entero (1.206 capítulos en «El detectiu Conan», con los huecos de su
                         catálogo incluidos), así que el vídeo se empareja con el episodio que ocupa esa
-                        posición en TMDB. El ancla solo corrige el desfase cuando los dos contadores no empiezan
-                        en el mismo episodio: <code>T22xC6=906</code> dice que ese capítulo es ese episodio y
-                        el resto del programa se numera con la diferencia que eso implica.
+                        posición en el proveedor. El ancla solo corrige el desfase cuando los dos contadores no
+                        empiezan en el mismo episodio: <code>T22xC6=906</code> dice que ese capítulo es ese
+                        episodio y el resto del programa se numera con la diferencia que eso implica.
                     </div>
 
                     <div class="fieldDescription" id="ThreeCatMappingStatus">
-                        Muestra la tabla «vídeo de 3Cat ↔ episodio de TMDB» sin escribir ningún fichero. Es la
-                        comprobación que hay que hacer antes de cambiar la fuente de una serie.
+                        Muestra la tabla «vídeo de 3Cat ↔ episodio del proveedor» sin escribir ningún fichero.
+                        Es la comprobación que hay que hacer antes de cambiar la fuente de una serie.
                     </div>
 
                     <div class="threeCatActions" id="ThreeCatMappingCandidates"></div>
@@ -541,7 +581,7 @@
                                     <th style="width: 5%">Cap.</th>
                                     <th style="width: 12%">Episodio</th>
                                     <th style="width: 10%">Evidencia</th>
-                                    <th style="width: 34%">Episodio de TMDB</th>
+                                    <th style="width: 34%">Episodio del proveedor</th>
                                 </tr>
                             </thead>
                             <tbody id="ThreeCatMappingBody"></tbody>
@@ -592,10 +632,10 @@
                         <span>Escribir archivos .nfo</span>
                     </label>
                     <div class="fieldDescription">
-                        El <code>.nfo</code> local es la fuente de metadatos de la biblioteca: sin la fuente TMDB
-                        el episodio se numera con la temporada y el capítulo que 3Cat escribe en el título, que
-                        no son los de TVDB ni los de TMDB, así que conviene desactivar los metadatos en línea en
-                        la biblioteca.
+                        El <code>.nfo</code> local es la fuente de metadatos de la biblioteca: sin una fuente de
+                        proveedor el episodio se numera con la temporada y el capítulo que 3Cat escribe en el
+                        título, que no son los de TVDB ni los de TMDB, así que conviene desactivar los metadatos
+                        en línea en la biblioteca.
                     </div>
 
                     <label class="checkboxContainer">
@@ -813,6 +853,11 @@
                     return 2;
                 }
 
+                // «TVDB absoluta» is a source of its own: one season, one episode per work.
+                if (text === 'tvdbabsolute' || text === 'tvdb-absoluta' || text === '3') {
+                    return 3;
+                }
+
                 return null;
             }
 
@@ -848,13 +893,14 @@
                 return tr;
             }
 
-            // Shows the table «video of 3Cat ↔ episode of TMDB» without writing a file: it is the check the
-            // design asks for before renaming a whole series, and the page is where it belongs because the
-            // user is the one who has the TMDB key.
+            // Shows the table «video of 3Cat ↔ episode of the provider» without writing a file: it is the
+            // check the design asks for before renaming a whole series, and the page is where it belongs
+            // because the user is the one who has the key of TMDB or TVDB.
             function threeCatRunMapping() {
                 var input = document.querySelector('#ThreeCatMappingProgram');
                 var programId = input.value.trim();
-                var tmdbId = document.querySelector('#ThreeCatMappingTmdb').value.trim();
+                var providerId = document.querySelector('#ThreeCatMappingProviderId').value.trim();
+                var source = document.querySelector('#ThreeCatMappingSource').value;
                 var anchors = document.querySelector('#ThreeCatMappingAnchors').value.trim();
                 var status = document.querySelector('#ThreeCatMappingStatus');
                 var candidates = document.querySelector('#ThreeCatMappingCandidates');
@@ -876,13 +922,16 @@
                     return;
                 }
 
-                status.textContent = 'Leyendo el catálogo de 3Cat y TMDB…';
+                status.textContent = 'Leyendo el catálogo de 3Cat y del proveedor…';
 
                 ApiClient.getJSON(threeCatUrl('Mapping', {
                     programId: programId,
-                    tmdbId: tmdbId,
+                    // The id is sent as both providers': the server reads the one of the source it resolves,
+                    // so the same field works with TMDB and with TVDB without asking the user what he typed.
+                    tmdbId: providerId,
+                    tvdbId: providerId,
                     anchors: anchors,
-                    source: 'tmdb'
+                    source: source
                 })).then(function (report) {
                     var title = threeCatField(report, 'title');
                     var programIdRead = threeCatField(report, 'programId');
@@ -906,7 +955,7 @@
                 }, function (reason) {
                     status.textContent = threeCatErrorMessage(
                         reason,
-                        'No se pudo leer el emparejamiento. Comprueba el programa y la clave de TMDB.');
+                        'No se pudo leer el emparejamiento. Comprueba el programa y la clave del proveedor.');
                 });
             }
 
@@ -962,10 +1011,32 @@
                     + ' · Duplicados: ' + threeCatInt(threeCatField(report, 'duplicates'), 0)
                     + ' · Cobertura: '
                     + Math.round(threeCatFloat(threeCatField(report, 'coverage'), 0) * 100) + ' %'
-                    + ' · ' + (threeCatField(report, 'usesThreeCat') ? 'Se numeraría con 3Cat' : 'Se numeraría con TMDB')
+                    + ' · ' + (threeCatField(report, 'usesThreeCat')
+                        ? 'Se numeraría con 3Cat'
+                        : 'Se numeraría con ' + threeCatProviderName(threeCatField(report, 'source')))
                     + (threeCatField(report, 'datesReliable') === false
-                        ? ' · Fechas descartadas: no coinciden con las de TMDB'
+                        ? ' · Fechas descartadas: no coinciden con las del proveedor'
                         : '');
+            }
+
+            // The provider the server numbered with, as the report names it: it is the only place the page
+            // learns whether the preview ran against TMDB or against TVDB.
+            function threeCatProviderName(source) {
+                var value = String(source || '').toLowerCase();
+
+                if (value === 'tmdb') {
+                    return 'TMDB';
+                }
+
+                if (value === 'tvdbabsolute') {
+                    return 'TVDB absoluta';
+                }
+
+                if (value === 'tvdb') {
+                    return 'TVDB';
+                }
+
+                return 'el proveedor';
             }
 
             // The seasons of 3Cat with their numbering and their counter, so an anchor can be written without
@@ -1347,9 +1418,9 @@
                 return cell;
             }
 
-            // The source of a program: «Heredar» follows the global one and the other values pin it. TVDB is
-            // offered disabled because its numbering is not implemented yet; a value saved by another
-            // version is shown as is, so saving the page never changes a setting the page does not offer.
+            // The source of a program: «Heredar» follows the global one and the other values pin it. A value
+            // saved by another version is shown as is, so saving the page never changes a setting the page
+            // does not offer.
             function threeCatProgramSourceCell(program) {
                 var cell = threeCatElement('td', 'threeCatCellSource');
                 var select = threeCatElement('select', 'threeCatSelect');
@@ -1359,7 +1430,8 @@
                     { value: '', label: 'Heredar' },
                     { value: '0', label: '3Cat' },
                     { value: '1', label: 'TMDB' },
-                    { value: '2', label: 'TVDB (próxima versión)', disabled: true }
+                    { value: '2', label: 'TVDB' },
+                    { value: '3', label: 'TVDB absoluta' }
                 ].forEach(function (option) {
                     var element = threeCatElement('option', '', option.label);
                     element.value = option.value;
@@ -2441,6 +2513,10 @@
                         threeCatField(config, 'tmdbApiKey') || '';
                     document.querySelector('#ThreeCatTmdbLanguage').value =
                         threeCatField(config, 'tmdbLanguage') || '';
+                    document.querySelector('#ThreeCatTvdbApiKey').value =
+                        threeCatField(config, 'tvdbApiKey') || '';
+                    document.querySelector('#ThreeCatTvdbPin').value =
+                        threeCatField(config, 'tvdbPin') || '';
                     document.querySelector('#ThreeCatRefreshInterval').value =
                         threeCatInt(threeCatField(config, 'refreshIntervalHours'), 12);
                     document.querySelector('#ThreeCatMaxItems').value =
@@ -2502,6 +2578,8 @@
                         document.querySelector('#ThreeCatMetadataSource').value) || 0;
                     config.TmdbApiKey = document.querySelector('#ThreeCatTmdbApiKey').value.trim();
                     config.TmdbLanguage = document.querySelector('#ThreeCatTmdbLanguage').value.trim();
+                    config.TvdbApiKey = document.querySelector('#ThreeCatTvdbApiKey').value.trim();
+                    config.TvdbPin = document.querySelector('#ThreeCatTvdbPin').value.trim();
                     config.RefreshIntervalHours = threeCatInt(
                         document.querySelector('#ThreeCatRefreshInterval').value, 12);
                     config.MaxItemsPerProgram = threeCatInt(
@@ -2592,7 +2670,7 @@
                     }
                 });
 
-                document.querySelector('#ThreeCatMappingTmdb').addEventListener('keydown', function (event) {
+                document.querySelector('#ThreeCatMappingProviderId').addEventListener('keydown', function (event) {
                     if (event.key === 'Enter') {
                         event.preventDefault();
                         threeCatRunMapping();

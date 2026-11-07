@@ -350,7 +350,7 @@ public sealed partial class ThreeCatSyncService
                 + "{Duplicates} duplicados ({Coverage:P0})",
                 seriesTitle,
                 numbering.Source,
-                numbering.TmdbId,
+                numbering.ProviderId,
                 provider.Matched,
                 provider.Assignable,
                 provider.ByDate,

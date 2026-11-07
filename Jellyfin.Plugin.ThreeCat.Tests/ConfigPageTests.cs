@@ -43,12 +43,45 @@ public sealed class ConfigPageTests
     }
 
     [Fact]
-    public void Page_SendsTheProgramAndTheTmdbIdOfThePreview()
+    public void Page_SendsTheProgramAndTheProviderIdOfThePreview()
     {
         var page = ReadPage();
 
         Assert.Contains("programId: programId,", page, StringComparison.Ordinal);
-        Assert.Contains("tmdbId: tmdbId,", page, StringComparison.Ordinal);
+
+        // The field is the id of the series in either provider: the server reads the one of the source it
+        // resolves, so the page sends it as both.
+        Assert.Contains("tmdbId: providerId,", page, StringComparison.Ordinal);
+        Assert.Contains("tvdbId: providerId,", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Page_OffersTvdbWithItsKeyAndItsPin()
+    {
+        // TVDB was offered disabled while its numbering did not exist: a page that kept it disabled would
+        // make the whole feature unreachable, and one without the key could never log in.
+        var page = ReadPage();
+
+        Assert.Contains("<option value=\"2\">TVDB (numeración de TVDB)</option>", page, StringComparison.Ordinal);
+        Assert.Contains(
+            "<option value=\"3\">TVDB absoluta (temporada única)</option>",
+            page,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("disabled>TVDB", page, StringComparison.Ordinal);
+
+        Assert.Contains("id=\"ThreeCatTvdbApiKey\"", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"ThreeCatTvdbPin\"", page, StringComparison.Ordinal);
+        Assert.Contains(
+            "config.TvdbApiKey = document.querySelector('#ThreeCatTvdbApiKey').value.trim();",
+            page,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "config.TvdbPin = document.querySelector('#ThreeCatTvdbPin').value.trim();",
+            page,
+            StringComparison.Ordinal);
+
+        // The preview can try TVDB —and its absolute order— without changing the source of the program first.
+        Assert.Contains("<option value=\"tvdb-absolute\">TVDB absoluta</option>", page, StringComparison.Ordinal);
     }
 
     [Fact]

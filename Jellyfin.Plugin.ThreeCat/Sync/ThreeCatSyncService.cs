@@ -15,6 +15,7 @@ public sealed partial class ThreeCatSyncService
     private readonly ThreeCatClient _client;
     private readonly OpenTvIdsClient _openTvIds;
     private readonly TmdbClient _tmdb;
+    private readonly TvdbClient _tvdb;
     private readonly ILibraryMonitor _libraryMonitor;
     private readonly ILogger<ThreeCatSyncService> _logger;
 
@@ -24,18 +25,21 @@ public sealed partial class ThreeCatSyncService
     /// <param name="client">3Cat API client.</param>
     /// <param name="openTvIds">Identity dataset, read only when a program uses an external source.</param>
     /// <param name="tmdb">TMDB client, read only when a program is numbered with it.</param>
+    /// <param name="tvdb">TVDB client, read only when a program is numbered with it.</param>
     /// <param name="libraryMonitor">Library monitor, notified after each series is updated.</param>
     /// <param name="logger">Logger.</param>
     public ThreeCatSyncService(
         ThreeCatClient client,
         OpenTvIdsClient openTvIds,
         TmdbClient tmdb,
+        TvdbClient tvdb,
         ILibraryMonitor libraryMonitor,
         ILogger<ThreeCatSyncService> logger)
     {
         _client = client;
         _openTvIds = openTvIds;
         _tmdb = tmdb;
+        _tvdb = tvdb;
         _libraryMonitor = libraryMonitor;
         _logger = logger;
     }

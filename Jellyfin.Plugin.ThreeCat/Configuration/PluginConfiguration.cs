@@ -163,10 +163,13 @@ public class PluginConfiguration : BasePluginConfiguration
     /// off when a configuration written by an older build is migrated: a plugin update must never move
     /// the library of the user behind its back. Version 5 adds <see cref="KindLibraries"/> (the library
     /// of Jellyfin each kind of program is also indexed by) and the kind of program pinned per program;
-    /// both are empty in a migrated configuration, so nothing moves and the version is only a stamp. The
-    /// XML serializer ignores the elements of a configuration written by an older build.
+    /// both are empty in a migrated configuration, so nothing moves and the version is only a stamp.
+    /// Version 6 adds the TVDB key and PIN (<see cref="TvdbApiKey"/>, <see cref="TvdbPin"/>), which are
+    /// empty in a migrated configuration: a program whose source is TVDB keeps the numbering of 3Cat until
+    /// the user writes them, exactly as it did in 1.10.0.0. The XML serializer ignores the elements of a
+    /// configuration written by an older build.
     /// </remarks>
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     /// <summary>
     /// Version of the file naming scheme written by this build.
@@ -201,6 +204,8 @@ public class PluginConfiguration : BasePluginConfiguration
         OpenTvIdsUrl = OpenTvIdsClient.DefaultUrl;
         TmdbApiKey = string.Empty;
         TmdbLanguage = TmdbClient.DefaultLanguage;
+        TvdbApiKey = string.Empty;
+        TvdbPin = string.Empty;
     }
 
     /// <summary>
@@ -278,6 +283,34 @@ public class PluginConfiguration : BasePluginConfiguration
     /// that returns something.
     /// </remarks>
     public string TmdbLanguage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the TVDB key the plugin reads the episodes of a series with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It is a secret of the user: it is never written to the log and it is only sent to TVDB, where it is
+    /// exchanged for a session token. TheTVDB issues the key from its dashboard and, for a project that reads
+    /// the API directly on behalf of its users, it requires a subscription or a licence with attribution:
+    /// the page says so next to the field. Without a key, a program whose source is TVDB keeps the numbering
+    /// of 3Cat.
+    /// </para>
+    /// <para>
+    /// The language of the titles is not a setting: the plugin pairs the videos by air date, by the counter
+    /// of 3Cat and by the anchors, and writes the titles of 3Cat in the <c>.nfo</c>, so the titles TVDB
+    /// returns are only evidence in the table of the preview.
+    /// </para>
+    /// </remarks>
+    public string TvdbApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the subscriber PIN of TVDB, which some keys need to log in.
+    /// </summary>
+    /// <remarks>
+    /// TheTVDB asks for it only when the key belongs to a subscription: it travels in the same login as the
+    /// key, it is a secret just like it, and it is empty for a licence with attribution.
+    /// </remarks>
+    public string TvdbPin { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether .nfo files are written.

@@ -34,5 +34,17 @@ public enum MetadataSource
     /// The numbering of TVDB, matched internally by air date and title. Only available for the
     /// programs the identity dataset maps to a TVDB id.
     /// </summary>
-    Tvdb = 2
+    Tvdb = 2,
+
+    /// <summary>
+    /// The absolute numbering of TVDB: every episode of the series in a single season, numbered with the
+    /// <c>absoluteNumber</c> of TVDB («S01E857»).
+    /// </summary>
+    /// <remarks>
+    /// It is the numbering anime releases are filed with, where the seasons of the airing order («T22xC6»)
+    /// and the absolute counter of the work disagree. It is a source of its own, and not a flag, so the
+    /// configuration, the folder of the program and the preview all keep saying which numbering the files
+    /// follow.
+    /// </remarks>
+    TvdbAbsolute = 3
 }

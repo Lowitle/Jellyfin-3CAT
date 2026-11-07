@@ -26,6 +26,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHttpClient<OpenTvIdsClient>(
             client => ConfigureClient(client, "https://raw.githubusercontent.com/"));
         serviceCollection.AddHttpClient<TmdbClient>(client => ConfigureClient(client, TmdbClient.BaseAddress));
+        serviceCollection.AddHttpClient<TvdbClient>(client => ConfigureClient(client, TvdbClient.BaseAddress));
 
         serviceCollection.AddSingleton<ThreeCatSyncService>();
         serviceCollection.AddSingleton<IScheduledTask, ThreeCatRefreshTask>();

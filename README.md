@@ -73,22 +73,30 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
   como se emitieron; los programas que no numeran **nada** (los diarios tipo *Tarda oberta*) se quedan
   en la temporada 1 en orden de emisión. Los vídeos repetidos literalmente se descartan y, si dos
   emisiones distintas comparten numeración, la segunda pasa a la temporada 0 en vez de perderse.
-- **Numeración de un proveedor (TMDB)**: la fuente de metadatos —global y por programa— elige entre el
-  catálogo de 3Cat, que es lo de siempre, y TMDB. Con TMDB, el plugin empareja cada vídeo con el episodio
-  que TMDB publica para la serie y escribe **la temporada y el episodio de TMDB** en el nombre del fichero,
+- **Numeración de un proveedor (TMDB y TVDB)**: la fuente de metadatos —global y por programa— elige entre
+  el catálogo de 3Cat, que es lo de siempre, TMDB, TVDB y «TVDB absoluta». Con una fuente de proveedor, el
+  plugin empareja cada vídeo con el episodio que el proveedor publica para la serie y escribe **su
+  temporada y su episodio** en el nombre del fichero,
   en el `.nfo` y en la carpeta `Season NN`, que es lo que hace que Jellyfin case la ficha online de cada
   episodio. La evidencia se usa en este orden: **anclas** del usuario, fecha de emisión (el mismo día, luego
   ±1 día) —solo si son densas, ver abajo—, el **`capitol` de 3Cat** (su numeración absoluta, ver abajo),
   título normalizado (igualdad y después contención) y orden dentro
   del hueco entre dos parejas ya emparejadas, solo cuando el hueco tiene el mismo número de vídeos que de
-  episodios. Un episodio de TMDB nunca se asigna dos veces y los huecos de su numeración se respetan
+  episodios. Un episodio del proveedor nunca se asigna dos veces y los huecos de su numeración se respetan
   (`S27E09` se queda en 9). Si el emparejamiento no
-  cubre **la mitad** de los vídeos, si el dataset no resuelve el id, si no hay clave de TMDB o si TMDB no
+  cubre **la mitad** de los vídeos, si el dataset no resuelve el id, si no hay clave del proveedor o si no
   responde, la serie entera se queda con la numeración de 3Cat y el registro dice por qué: nunca queda una
   serie a medias, con huecos falsos y episodios repetidos. La página de configuración tiene una **vista
-  previa** de la tabla «vídeo de 3Cat — episodio de TMDB» que no escribe ningún fichero, y cambiar la
+  previa** de la tabla «vídeo de 3Cat — episodio del proveedor» que no escribe ningún fichero, y cambiar la
   fuente de un programa reescribe su carpeta (solo si es del plugin y su `tvshow.nfo` nombra ese programa)
   porque Jellyfin reimporta esos episodios y se pierde el «visto» de esa serie.
+- **TVDB, en su orden de emisión o en el absoluto**: TVDB es la otra mitad de la misma idea —hay series que
+  TMDB no documenta— y aporta además el orden **absoluto**, que es el que se usa para archivar anime: con
+  «TVDB absoluta» el programa entero es **una sola temporada** y cada episodio lleva el `absoluteNumber` de
+  TVDB, así que «Bola de Drac» no se parte en 22 temporadas de emisión. Si TVDB no ha curado ese orden, el
+  plugin lee el orden de emisión y usa el número absoluto de cada episodio, así que la numeración sale igual.
+  El cliente inicia sesión con la clave de API del usuario (`POST /login`, con el PIN de suscriptor cuando la
+  clave es de suscripción), guarda el token un mes en memoria y lee los episodios página a página.
 - **Cruce por la numeración absoluta (`capitol`)**: el `capitol` que publica 3Cat es un contador del
   **programa entero**, no de la temporada: «El detectiu Conan» numera sus 385 vídeos del 1 al 1.206 sin un
   solo paso atrás (T1 acaba en 43 y T2 empieza en 44, T3 en 89 y, tras los 720 capítulos que 3Cat no aloja,
@@ -182,6 +190,11 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
 | **Organizar los programas por tipo** | activado | Escribe cada programa en la subcarpeta de su tipo —«Programes TV», «Series», «Documentals», «Anime», «Infantil» y «Movies»— y el cine como películas (`movie.nfo`, «Título (Año)») en lugar de como una serie de un episodio. «Crear biblioteca» prepara una biblioteca de «Programas de TV» con las carpetas de las series y una de «Películas» con «Movies», y una biblioteca curada puede apuntar a una sola subcarpeta sin duplicar ningún archivo. La primera actualización tras activarlo mueve cada programa a su carpeta y borra la anterior, así que Jellyfin las vuelve a leer una vez. Desactivado, todo se escribe directamente en la carpeta de destino. |
 | **Sub-bibliotecas por tipo** | vacío | Añade la carpeta de un tipo a una biblioteca que ya exista en el servidor, para ver el anime, los documentales o las películas en su propia biblioteca sin duplicar un archivo: Jellyfin indexa la misma carpeta en todas las bibliotecas que la apuntan. El alta es manual, con el botón **Aplicar a las bibliotecas**, y nunca un efecto secundario de la actualización; aplicar dos veces el mismo tipo no añade la carpeta dos veces. |
 | **Intervalo de actualización (horas)** | `12` | Periodicidad de la tarea programada «Actualizar 3Cat». La tarea también se lanza al arrancar el servidor. |
+| **Fuente de metadatos** | 3Cat | De dónde sale la numeración de los episodios: el catálogo de 3Cat (lo de siempre), TMDB, TVDB o «TVDB absoluta» (una sola temporada con el `absoluteNumber` de TVDB). La tabla de programas puede fijar otra para un programa concreto. Con una fuente de proveedor, el id viaja en el `tvshow.nfo` y el `.strm` lleva la temporada y el episodio del proveedor. |
+| **Clave de TMDB** | vacío | Clave v3 o token de lectura v4 de la cuenta del usuario. Se guarda en la configuración y nunca se escribe en el registro. Sin clave, las series con fuente TMDB se numeran con 3Cat. |
+| **Idioma de las fichas de TMDB** | `es-ES` | Solo afecta a los títulos de episodio que se leen de TMDB: el emparejamiento va por fecha y por el contador de 3Cat. |
+| **Clave de API de TVDB** | vacío | Clave de la cuenta de TheTVDB (panel de cuenta → claves de API). El plugin la cambia por un token de sesión que guarda un mes en memoria. TheTVDB exige suscripción o licencia con atribución para este uso, así que la clave la pone cada usuario; sin ella, las series con fuente TVDB se numeran con 3Cat. |
+| **PIN de suscriptor de TVDB** | vacío | Solo para las claves de suscriptor: TheTVDB pide el PIN en el mismo inicio de sesión que la clave. |
 | **Máximo de episodios por programa** | `0` | `0` escribe todos los vídeos del catálogo; un valor positivo se queda con los más recientes. |
 | **Escribir archivos .nfo** | activado | Genera `tvshow.nfo` y un `.nfo` por episodio. Es la fuente de metadatos de la biblioteca. |
 | **Clasificar los programas por su formato** | activado | Escribe el formato de 3Cat («Sèrie», «Documental», «Animació»…) como primer género de la serie y lo muestra en la columna **Categoría** del catálogo, que también se puede filtrar. Desactivado, los géneros son solo los temas de los vídeos y el catálogo no lee las facetas. |
@@ -206,8 +219,9 @@ El botón **Ejecutar ahora** guarda la configuración y lanza la tarea sin esper
 3. En **Panel → Bibliotecas → 3Cat**, **desactiva los metadatos en línea**. La numeración que usa el
    plugin sale del título de 3Cat (`T22xC6`) y no coincide con la de TVDB ni con la de TMDb: si Jellyfin
    refresca contra esos proveedores, los títulos, las sinopsis y los números de episodio que escribe el
-   plugin se sustituyen por otros. La 1.6.0.0 descarga el dataset de identificadores pero sigue numerando
-   con 3Cat, así que esta recomendación no cambia todavía.
+   plugin se sustituyen por otros. La recomendación cambia solo para las series que se numeran con un
+   proveedor: ahí el `.nfo` lleva el id del proveedor y la numeración es la suya, así que se pueden activar
+   los metadatos en línea de ese proveedor —y solo de ese— para completar la ficha.
 4. Lanza **Actualizar 3Cat** (o espera al siguiente ciclo) y refresca la biblioteca. La biblioteca se
    deja con monitorización en tiempo real activada, así que los `.strm` nuevos aparecen solos.
 
@@ -365,6 +379,12 @@ dotnet run --project tools/CatalogDump     # volcado del catálogo a CSV: la ent
 - La clave de TMDB es del usuario y se guarda en la configuración del plugin (nunca en el registro): la
   página acepta tanto una clave v3 como un token de lectura v4 y los distingue por su forma. Sin clave,
   las series se siguen numerando con 3Cat.
+- La clave de TVDB también es del usuario, y con ella viaja el PIN cuando la clave es de suscriptor. El
+  plugin no guarda la clave en ningún sitio que no sea la configuración y nunca la escribe en el registro:
+  la cambia por un token (`POST /v4/login`), lo guarda un mes en memoria y lo manda como `Bearer` en cada
+  lectura. TheTVDB exige suscripción o licencia con atribución para que un proyecto lea su API en nombre de
+  sus usuarios, así que cada instalación pone la suya. Sin clave, las series con fuente TVDB se siguen
+  numerando con 3Cat.
 - Si la descarga falla, se usa la copia anterior (o ninguna) y la sincronización continúa igual: el
   dataset nunca bloquea una actualización.
 

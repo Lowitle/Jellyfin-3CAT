@@ -16,7 +16,7 @@ public sealed class PluginConfigurationTests
 
         Assert.Equal(MetadataSource.ThreeCat, configuration.MetadataSource);
         Assert.Equal(OpenTvIdsClient.DefaultUrl, configuration.OpenTvIdsUrl);
-        Assert.Equal(5, PluginConfiguration.CurrentVersion);
+        Assert.Equal(6, PluginConfiguration.CurrentVersion);
 
         // A fresh installation writes the programs one folder per kind: the layout of 1.9.0.0 is the one
         // the page shows and the one «Crear biblioteca» prepares out of the box.
@@ -30,6 +30,12 @@ public sealed class PluginConfigurationTests
         Assert.Equal(string.Empty, configuration.TmdbApiKey);
         Assert.Equal(Providers.TmdbClient.DefaultLanguage, configuration.TmdbLanguage);
         Assert.False(Providers.TmdbClient.IsConfigured(configuration.TmdbApiKey));
+
+        // TVDB is the same: no key and no PIN until the user writes them, so a program whose source is TVDB
+        // keeps the numbering of 3Cat and the plugin never logs in to a service it was not asked to read.
+        Assert.Equal(string.Empty, configuration.TvdbApiKey);
+        Assert.Equal(string.Empty, configuration.TvdbPin);
+        Assert.False(Providers.TvdbClient.IsConfigured(configuration.TvdbApiKey));
     }
 
     [Fact]

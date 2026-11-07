@@ -74,6 +74,31 @@ Nombre `Jellyfin.Plugin.ThreeCat`. Licencia **GPLv3** (obligada por enlazar con 
 - Script portable: `C:\localapps\3cat-dl.ps1`
 - Implementación de producción: `Z:\projectes\Doraemon\pipeline\trescat.py`
 
+## Estado de la 1.11.0.0
+
+Detalle y decisiones en `ROADMAP.md`:
+
+1. **Hecho.** TVDB es una fuente de numeración completa: `Providers/TvdbClient.cs` inicia sesión con la
+   clave del usuario (`POST /v4/login`, con el PIN de suscriptor cuando la clave es de suscripción),
+   guarda el bearer token un mes en memoria y lee los episodios de la serie página a página
+   (`series/{id}/episodes/{season-type}?page=N` + `links.next`). Los devuelve como `ProviderEpisode`, así
+   que el emparejamiento —anclas, fecha, contador `capitol`, desfase de partes, título, orden y umbral de
+   cobertura— es exactamente el mismo que el de TMDB, y la caída a 3Cat también
+   (`TvdbClientTests`, `ProviderNumberingTests`).
+2. **Hecho.** «TVDB absoluta» es un valor del enum (`MetadataSource.TvdbAbsolute = 3`), no una casilla:
+   escribe el programa entero como una sola temporada con el `absoluteNumber` de cada episodio, que es la
+   numeración con la que se archiva el anime. Si TVDB no publica ese orden, el cliente lee el orden de
+   emisión y traduce por `absoluteNumber`; las dos fuentes escriben el mismo `uniqueid type="tvdb"`
+   (`NfoBuilderTests`), porque para Jellyfin es la misma serie.
+3. **Hecho.** La página ofrece las cuatro fuentes —global y por programa—, los campos «Clave de API de
+   TVDB» y «PIN de suscriptor de TVDB» (secretos: no se escriben en el registro), y la vista previa puede
+   probar TMDB, TVDB o TVDB absoluta sin cambiar antes la configuración (`ConfigPageTests`).
+   `PluginConfiguration.CurrentVersion` sube a 6; una configuración migrada llega con los dos campos vacíos
+   y todo se numera como antes hasta que se escriba la clave (`PluginConfigurationTests`).
+4. **Hecho.** TheTVDB licencia su API para proyectos que leen datos en nombre de sus usuarios con
+   suscripción o licencia con atribución: el plugin no reparte ninguna clave, cada instalación pone la
+   suya, y la página lo dice junto al campo.
+
 ## Estado de la 1.10.0.0
 
 Detalle y decisiones en `ROADMAP.md`:

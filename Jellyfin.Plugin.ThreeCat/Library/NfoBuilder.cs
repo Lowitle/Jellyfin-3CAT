@@ -77,7 +77,7 @@ internal static class NfoBuilder
         var providerId = series.NumberingSource switch
         {
             MetadataSource.Tmdb => series.TmdbId,
-            MetadataSource.Tvdb => series.TvdbId,
+            MetadataSource.Tvdb or MetadataSource.TvdbAbsolute => series.TvdbId,
             _ => null
         };
 

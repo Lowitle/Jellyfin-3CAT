@@ -25,6 +25,7 @@ public sealed class ThreeCatPlayController : ControllerBase
     private readonly ThreeCatClient _client;
     private readonly OpenTvIdsClient _dataset;
     private readonly TmdbClient _tmdb;
+    private readonly TvdbClient _tvdb;
     private readonly ITaskManager _taskManager;
     private readonly ILibraryManager _libraryManager;
     private readonly ILibraryMonitor _libraryMonitor;
@@ -36,6 +37,7 @@ public sealed class ThreeCatPlayController : ControllerBase
     /// <param name="client">3Cat API client.</param>
     /// <param name="dataset">Identity dataset of <c>open-tv-ids</c>.</param>
     /// <param name="tmdb">TMDB client, used by the preview of the numbering.</param>
+    /// <param name="tvdb">TVDB client, used by the preview of the numbering.</param>
     /// <param name="taskManager">Task manager.</param>
     /// <param name="libraryManager">Library manager.</param>
     /// <param name="libraryMonitor">Library monitor, used to make Jellyfin look at the new folder.</param>
@@ -44,6 +46,7 @@ public sealed class ThreeCatPlayController : ControllerBase
         ThreeCatClient client,
         OpenTvIdsClient dataset,
         TmdbClient tmdb,
+        TvdbClient tvdb,
         ITaskManager taskManager,
         ILibraryManager libraryManager,
         ILibraryMonitor libraryMonitor,
@@ -52,6 +55,7 @@ public sealed class ThreeCatPlayController : ControllerBase
         _client = client;
         _dataset = dataset;
         _tmdb = tmdb;
+        _tvdb = tvdb;
         _taskManager = taskManager;
         _libraryManager = libraryManager;
         _libraryMonitor = libraryMonitor;
@@ -492,14 +496,17 @@ public sealed class ThreeCatPlayController : ControllerBase
     /// </summary>
     /// <remarks>
     /// It is the table the design asks for before renumerating a series: every video of 3Cat next to the
-    /// season, the episode and the evidence that paired it. It reads the catalog, the dataset and TMDB the
-    /// same way the refresh task does, so what it shows is what the task would write.
+    /// season, the episode and the evidence that paired it. It reads the catalog, the dataset and the
+    /// provider the same way the refresh task does, so what it shows is what the task would write.
     /// </remarks>
     /// <param name="programId">
     /// Program reference: its id, the URL of its page, its title, or the id or the URL of any of its videos.
     /// </param>
     /// <param name="tmdbId">Id of the series in TMDB (or the URL of its page), when the user knows it.</param>
-    /// <param name="source">Source to try (<c>tmdb</c>); the configured one when empty.</param>
+    /// <param name="tvdbId">Id of the series in TVDB (or the URL of its page), when the user knows it.</param>
+    /// <param name="source">
+    /// Source to try (<c>tmdb</c>, <c>tvdb</c> or <c>tvdb-absolute</c>); the configured one when empty.
+    /// </param>
     /// <param name="anchors">
     /// Anchors typed by the user («T1=1; T20=856»). They win over every other evidence: they are the only thing
     /// that ties a dub to the original when the titles are translated and the dates are the ones of the dub.
@@ -513,6 +520,7 @@ public sealed class ThreeCatPlayController : ControllerBase
     public async Task<ActionResult<ThreeCatMappingReport>> MappingAsync(
         [FromQuery] string? programId,
         [FromQuery] string? tmdbId,
+        [FromQuery] string? tvdbId,
         [FromQuery] string? source,
         [FromQuery] string? anchors,
         CancellationToken cancellationToken)
@@ -549,6 +557,9 @@ public sealed class ThreeCatPlayController : ControllerBase
         var knownTmdb = Resolve(
             ProgramReference.TmdbId(tmdbId),
             ProgramReference.TmdbId(program?.TmdbId));
+        var knownTvdb = Resolve(
+            ProgramReference.TvdbId(tvdbId),
+            ProgramReference.TvdbId(program?.TvdbId));
 
         var videos = ordered
             .Select(video => new ProviderVideo(
@@ -568,13 +579,24 @@ public sealed class ThreeCatPlayController : ControllerBase
 
         if (message.Length == 0)
         {
-            if (preferred != MetadataSource.Tmdb)
+            if (!preferred.IsProvider())
             {
-                message = "La vista previa del emparejamiento solo está disponible para la fuente TMDB.";
+                message = "La vista previa del emparejamiento solo está disponible para las fuentes TMDB y"
+                    + " TVDB.";
             }
             else
             {
-                if (knownTmdb is null)
+                var usesTvdb = preferred.UsesTvdb();
+
+                if (usesTvdb && knownTvdb is null)
+                {
+                    var dataset = await _dataset
+                        .LoadAsync(configuration.OpenTvIdsUrl, forceRefresh: false, cancellationToken)
+                        .ConfigureAwait(false);
+
+                    knownTvdb = Resolve(null, dataset.Find(resolved)?.Ids?.Tvdb);
+                }
+                else if (!usesTvdb && knownTmdb is null)
                 {
                     var dataset = await _dataset
                         .LoadAsync(configuration.OpenTvIdsUrl, forceRefresh: false, cancellationToken)
@@ -583,40 +605,61 @@ public sealed class ThreeCatPlayController : ControllerBase
                     knownTmdb = Resolve(null, dataset.Find(resolved)?.Ids?.Tmdb);
                 }
 
-                if (knownTmdb is null)
+                var providerName = preferred.ProviderName();
+                var knownId = usesTvdb ? knownTvdb : knownTmdb;
+
+                if (knownId is null)
                 {
-                    message = "No hay id de TMDB para este programa: escríbelo en el segundo campo o en la"
-                        + " columna TMDB de la tabla de programas.";
+                    message = $"No hay id de {providerName} para este programa: escríbelo en el segundo campo"
+                        + " o en la tabla de programas.";
                 }
-                else if (!TmdbClient.IsConfigured(configuration.TmdbApiKey))
+                else if (usesTvdb && !TvdbClient.IsConfigured(configuration.TvdbApiKey))
                 {
-                    externalId = knownTmdb;
+                    externalId = knownId;
+                    message = "No hay clave de API de TVDB guardada: escríbela arriba, en «Clave de API de"
+                        + " TVDB», y guarda los ajustes.";
+                }
+                else if (!usesTvdb && !TmdbClient.IsConfigured(configuration.TmdbApiKey))
+                {
+                    externalId = knownId;
                     message = "No hay clave de API de TMDB guardada: escríbela arriba, en «Clave de API de"
                         + " TMDB», y guarda los ajustes.";
                 }
                 else
                 {
-                    externalId = knownTmdb;
+                    externalId = knownId;
 
-                    var episodes = await _tmdb
-                        .GetEpisodesAsync(
-                            knownTmdb,
-                            configuration.TmdbApiKey,
-                            configuration.TmdbLanguage,
-                            cancellationToken)
-                        .ConfigureAwait(false);
+                    // The preview reads the same orders the task does: the aired or absolute order of TVDB,
+                    // or the seasons of TMDB.
+                    var episodes = usesTvdb
+                        ? await _tvdb
+                            .GetEpisodesAsync(
+                                knownId,
+                                configuration.TvdbApiKey,
+                                configuration.TvdbPin,
+                                preferred.IsAbsolute(),
+                                cancellationToken)
+                            .ConfigureAwait(false)
+                        : await _tmdb
+                            .GetEpisodesAsync(
+                                knownId,
+                                configuration.TmdbApiKey,
+                                configuration.TmdbLanguage,
+                                cancellationToken)
+                            .ConfigureAwait(false);
 
                     if (episodes.Count == 0)
                     {
-                        message = $"TMDB no publica los episodios de la serie {knownTmdb}: comprueba que el id"
-                            + " es el de una serie y no el de una película.";
+                        message = $"{providerName} no publica los episodios de la serie {knownId}: comprueba"
+                            + " que el id es el de una serie y no el de una película.";
                     }
                     else
                     {
                         result = ProviderNumbering.Assign(videos, episodes, title, anchorList);
                         message = result.UseThreeCat
                             ? $"La cobertura es del {result.Coverage:P0}: la serie se numeraría con 3Cat."
-                            : $"La serie se numeraría con TMDB: {result.Matched} de {result.Assignable} vídeos emparejados.";
+                            : $"La serie se numeraría con {providerName}: {result.Matched} de"
+                                + $" {result.Assignable} vídeos emparejados.";
 
                         if (result.Anchors > 0 && result.AnchorsPlaced < result.Anchors)
                         {
@@ -627,8 +670,9 @@ public sealed class ThreeCatPlayController : ControllerBase
 
                         if (!result.DatesReliable && result.Anchors == 0 && result.ByCounter == 0)
                         {
-                            message += " Las fechas de 3Cat no coinciden con las de TMDB (son las del doblaje),"
-                                + " así que no se han usado: sin anclas no hay forma de emparejar los vídeos.";
+                            message += " Las fechas de 3Cat no coinciden con las de"
+                                + $" {providerName} (son las del doblaje), así que no se han usado: sin anclas no"
+                                + " hay forma de emparejar los vídeos.";
                         }
                         else if (!result.DatesReliable && result.ByCounter > 0)
                         {
@@ -638,8 +682,8 @@ public sealed class ThreeCatPlayController : ControllerBase
 
                             if (result.CounterOffset != 0)
                             {
-                                message += $" El contador va desfasado {result.CounterOffset} respecto a TMDB"
-                                    + " (lo dicen tus anclas).";
+                                message += $" El contador va desfasado {result.CounterOffset} respecto a"
+                                    + $" {providerName} (lo dicen tus anclas).";
                             }
                         }
 
@@ -661,7 +705,8 @@ public sealed class ThreeCatPlayController : ControllerBase
                         // difference between the two catalogs and the user has to know it was applied.
                         if (result.ByShift > 0)
                         {
-                            message += $" 3Cat emite en varias partes episodios que TMDB numera una sola vez, así que"
+                            message += " 3Cat emite en varias partes episodios que"
+                                + $" {providerName} numera una sola vez, así que"
                                 + $" su contador va desfasado: {result.Votes} títulos escritos en otro idioma sitúan"
                                 + $" {result.ByShift} vídeos en el episodio que les toca.";
                         }
@@ -914,6 +959,7 @@ public sealed class ThreeCatPlayController : ControllerBase
         {
             "TMDB" => MetadataSource.Tmdb,
             "TVDB" => MetadataSource.Tvdb,
+            "TVDB-ABSOLUTE" or "TVDB ABSOLUTE" or "TVDBABSOLUTE" => MetadataSource.TvdbAbsolute,
             "3CAT" or "THREECAT" => MetadataSource.ThreeCat,
             _ => null
         };
@@ -1113,7 +1159,7 @@ public sealed record ThreeCatMappingRow(
 /// </summary>
 /// <param name="ProgramId">3Cat program id the catalog was read from.</param>
 /// <param name="Title">Title of the series.</param>
-/// <param name="Source">Source the preview used (<c>ThreeCat</c>, <c>Tmdb</c>).</param>
+/// <param name="Source">Source the preview used (<c>ThreeCat</c>, <c>Tmdb</c>, <c>Tvdb</c>, <c>TvdbAbsolute</c>).</param>
 /// <param name="ExternalId">Provider id used, or <c>null</c> when there is none.</param>
 /// <param name="Videos">Videos of the program.</param>
 /// <param name="Matched">Videos paired with an episode of the provider.</param>

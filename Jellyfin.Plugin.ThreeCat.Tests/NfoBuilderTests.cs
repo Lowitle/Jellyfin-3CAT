@@ -344,6 +344,29 @@ public class NfoBuilderTests
     }
 
     [Fact]
+    public void BuildSeries_WritesTheTvdbIdWithTheAbsoluteSource()
+    {
+        // «TVDB absoluta» numbers one season of its own, but it is still TVDB: the id and the type of the
+        // uniqueid do not change, or Jellyfin would not find the series.
+        var series = new LibrarySeries
+        {
+            Title = "Bola de Drac Súper",
+            ProgramId = "73476",
+            NumberingSource = MetadataSource.TvdbAbsolute,
+            TmdbId = "62715",
+            TvdbId = "295068"
+        };
+
+        var ids = XDocument.Parse(NfoBuilder.BuildSeries(series))
+            .Root!
+            .Elements("uniqueid")
+            .ToList();
+
+        Assert.Equal(["threecat", "tvdb"], ids.Select(element => element.Attribute("type")!.Value));
+        Assert.Equal("295068", ids[1].Value);
+    }
+
+    [Fact]
     public void BuildSeries_WritesNoProviderIdWhenTheSelectedSourceHasNoId()
     {
         var series = new LibrarySeries

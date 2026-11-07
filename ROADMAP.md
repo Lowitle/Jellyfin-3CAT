@@ -1,10 +1,65 @@
 # Hoja de ruta
 
-Notas de trabajo. Estado de la **v1.10.0.0**: la tabla de programas, la clasificación por programa y las
-sub-bibliotecas por tipo están implementadas y probadas, y `README.md` y `resumen.md` describen el
-comportamiento de 1.10.0.0. Las notas de 1.5.0.0 se conservan como registro de las decisiones
-anteriores —numeración, desplegable de biblioteca, espejo y películas—, que siguen explicando por qué el
-código es como es.
+Notas de trabajo. Estado de la **v1.11.0.0**: TVDB es una fuente de numeración completa —en su orden de
+emisión y en el absoluto—, y `README.md` y `resumen.md` describen el comportamiento de 1.11.0.0. Las notas
+de 1.10.0.0 y 1.5.0.0 se conservan como registro de las decisiones anteriores —tabla de programas,
+clasificación por programa, sub-bibliotecas, numeración, desplegable de biblioteca, espejo y películas—,
+que siguen explicando por qué el código es como es.
+
+## v1.11.0.0
+
+### 1. TVDB deja de ser una promesa (implementado)
+
+**Decisión.** TVDB entró en el enum en 1.7.0.0 como valor reservado —`MetadataSource.Tvdb = 2`, con un
+`Fallback` que dejaba la serie en la numeración de 3Cat— porque sin cliente no había forma de numerar con
+ella. Ahora hay cliente: `Providers/TvdbClient.cs` inicia sesión, lee los episodios y los devuelve en el
+mismo `ProviderEpisode` que TMDB, así que todo lo que ya sabía hacer el emparejamiento —anclas, fecha,
+contador `capitol`, desfase de partes, título, orden, umbral de cobertura y caída a 3Cat— vale igual para
+las dos fuentes. La rama de `ResolveNumberingAsync` deja de mirar una sola fuente y pregunta a
+`MetadataSources` qué proveedor es.
+
+**Sesión.** TVDB no acepta la clave en cada petición: se cambia por un bearer token en `POST /login` que
+dura un mes. El cliente lo guarda en un diccionario estático por par de clave y PIN, serializa los inicios
+de sesión con un `SemaphoreSlim` —una actualización que arranca veinte programas no pide veinte tokens—,
+lo renueva cuando quedan menos de dos días y lo tira y repite la página cuando una lectura responde 401 (un
+token caducado, no una clave mala: una clave rechazada en el login no se reintenta).
+
+**Órdenes.** `GET series/{id}/episodes/{season-type}?page=N` devuelve una página y `links.next`; el cliente
+recorre las páginas con un tope de cien. El orden `default` es el de emisión: los especiales (temporada 0)
+se quedan fuera, porque no son emisiones de 3Cat y se robarían la pareja de un episodio normal. El orden
+`absolute` es el que archiva el anime, una sola temporada con el `absoluteNumber` de cada episodio; si TVDB
+no lo ha curado (`data.episodes` vacío) el cliente lee el orden de emisión y traduce cada episodio por su
+`absoluteNumber`, y aun así la numeración sale igual en vez de quedarse sin serie.
+
+**Por qué es una fuente y no una casilla.** «TVDB absoluta» es `MetadataSource.TvdbAbsolute = 3`, no un
+booleano al lado de la fuente: la fuente ya viaja en la configuración global, en el `Override` de cada
+programa, en el informe de la vista previa y en `WrittenSource`, así que un valor más hereda todo eso —la
+detección de cambio de numeración que reescribe la carpeta, por ejemplo— y no hay dos ejes que puedan
+contradecirse. El enum documenta desde 1.7.0.0 que solo se pueden añadir valores, nunca renombrarlos.
+
+**Un `uniqueid`, dos órdenes.** Las dos fuentes de TVDB escriben el mismo `uniqueid type="tvdb"`: son la
+misma serie para Jellyfin y lo que cambia es la numeración de los ficheros. `MetadataSources.UsesTvdb` es
+lo que consulta `NfoBuilder`, para que añadir la fuente absoluta no dejara el `.nfo` sin id.
+
+**Pruebas.** `TvdbClientTests` (orden de emisión sin especiales, token reutilizado entre series, páginas,
+orden absoluto, caída al orden de emisión, sin clave, sin id, clave rechazada, token caducado que se
+renueva), un caso de `NfoBuilderTests` para el `uniqueid` de la fuente absoluta, `ConfigPageTests` (los
+selectores, los dos campos nuevos y que TVDB ya no se ofrece deshabilitada) y `PluginConfigurationTests`
+(versión 6 y los dos campos vacíos por defecto). `dotnet test`: 487 en verde.
+
+**Ficheros.** `Providers/TvdbClient.cs`, `Providers/TvdbModels.cs`,
+`Configuration/MetadataSources.cs`, `Configuration/MetadataSource.cs`,
+`Configuration/PluginConfiguration.cs`, `Sync/ThreeCatSyncService.Providers.cs`,
+`Sync/ThreeCatSyncService.cs`, `Sync/ThreeCatSyncService.Programs.cs`, `Library/NfoBuilder.cs`,
+`ThreeCat/ProgramReference.cs`, `PluginServiceRegistrator.cs`, `Api/ThreeCatPlayController.cs`,
+`Configuration/configPage.html`, `Tests/TvdbClientTests.cs`, `Tests/NfoBuilderTests.cs`,
+`Tests/ConfigPageTests.cs`, `Tests/PluginConfigurationTests.cs`, `Directory.Build.props`, `build.yaml`,
+`README.md`, `resumen.md`.
+
+**Atribución.** TheTVDB licencia su API para proyectos que leen datos en nombre de sus usuarios con
+suscripción o licencia con atribución; el plugin no reparte ninguna clave (cada instalación pone la suya) y
+la página lo dice junto al campo. Si la clave no se escribe, la fuente TVDB se comporta como en 1.10.0.0:
+la serie se numera con 3Cat y el registro dice por qué.
 
 ## v1.10.0.0
 
@@ -393,9 +448,8 @@ orden, temporada 0 ignorada, sin clave, sin id, 404, clave v3 y token v4, fecha 
 `Tests/ProviderNumberingTests.cs`, `Tests/TmdbClientTests.cs`, `Tests/PluginConfigurationTests.cs`,
 `Directory.Build.props`, `build.yaml`, `README.md`.
 
-**Pendiente (fase C).** Cliente de TVDB con su token, `absoluteNumber` y el modo de numeración absoluta como
-opción explícita del programa. Hasta entonces la opción «TVDB» aparece deshabilitada en la página y, si se
-selecciona, la serie se numera con 3Cat y no se escribe ningún `uniqueid` de TVDB.
+**Resuelto en la 1.11.0.0.** El cliente de TVDB, el `absoluteNumber` y la numeración absoluta como fuente
+explícita del programa (`MetadataSource.TvdbAbsolute`) están implementados: ver la sección de 1.11.0.0.
 
 ## Comprobaciones antes de publicar
 

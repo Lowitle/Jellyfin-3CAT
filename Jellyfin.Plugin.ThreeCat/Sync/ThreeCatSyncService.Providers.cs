@@ -30,7 +30,14 @@ public sealed partial class ThreeCatSyncService
         string? TvdbId,
         string? ImdbId,
         ProviderNumberingResult? Provider,
-        string? Note);
+        string? Note)
+    {
+        /// <summary>
+        /// Gets the id of the provider the series was numbered with: the one the <c>tvshow.nfo</c> and the
+        /// log name, which is the TVDB id or the TMDB one depending on the source.
+        /// </summary>
+        public string? ProviderId => Source.UsesTvdb() ? TvdbId : TmdbId;
+    }
 
     /// <summary>
     /// Decides the source of a program and numbers its videos with it.
@@ -45,8 +52,8 @@ public sealed partial class ThreeCatSyncService
     /// <returns>The numbering and the ids to write.</returns>
     /// <remarks>
     /// The numbering of 3Cat is always computed, because it is the default and the fallback of everything
-    /// else: a missing id, a missing key, a TMDB that does not answer or a coverage below the threshold all
-    /// end in the same place —the series is written as it was before the option existed— and never in a
+    /// else: a missing id, a missing key, a provider that does not answer or a coverage below the threshold
+    /// all end in the same place —the series is written as it was before the option existed— and never in a
     /// series half numbered with the provider.
     /// </remarks>
     private async Task<ProgramNumbering> ResolveNumberingAsync(
@@ -73,33 +80,9 @@ public sealed partial class ThreeCatSyncService
         ProgramNumbering Fallback(string note)
             => new(MetadataSource.ThreeCat, threeCat, tmdbId, tvdbId, imdbId, null, note);
 
-        if (preferred != MetadataSource.Tmdb)
+        if (!preferred.IsProvider())
         {
-            return preferred == MetadataSource.Tvdb
-                // TVDB numbering arrives with its own client (phase C). Until then the series keeps the
-                // numbering of 3Cat and no tvdb uniqueid is written: it would make Jellyfin ask for episodes
-                // the files do not follow.
-                ? Fallback("la numeración de TVDB todavía no está disponible")
-                : new ProgramNumbering(MetadataSource.ThreeCat, threeCat, tmdbId, tvdbId, imdbId, null, null);
-        }
-
-        if (tmdbId is null)
-        {
-            return Fallback("el dataset no resuelve un id de TMDB y no hay ninguno escrito a mano");
-        }
-
-        if (!TmdbClient.IsConfigured(configuration.TmdbApiKey))
-        {
-            return Fallback("no hay clave de TMDB configurada");
-        }
-
-        var episodes = await _tmdb
-            .GetEpisodesAsync(tmdbId, configuration.TmdbApiKey, configuration.TmdbLanguage, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (episodes.Count == 0)
-        {
-            return Fallback($"TMDB no publica los episodios de la serie {tmdbId}");
+            return new ProgramNumbering(MetadataSource.ThreeCat, threeCat, tmdbId, tvdbId, imdbId, null, null);
         }
 
         var videos = ordered
@@ -110,6 +93,60 @@ public sealed partial class ThreeCatSyncService
                 video.Chapter))
             .ToList();
 
+        var usesTvdb = preferred.UsesTvdb();
+
+        // The episodes of the provider, in the order the source asks for: the aired order of TVDB, the
+        // absolute one, or the seasons of TMDB.
+        IReadOnlyList<ProviderEpisode> episodes;
+
+        if (usesTvdb)
+        {
+            if (tvdbId is null)
+            {
+                return Fallback("el dataset no resuelve un id de TVDB y no hay ninguno escrito a mano");
+            }
+
+            if (!TvdbClient.IsConfigured(configuration.TvdbApiKey))
+            {
+                return Fallback("no hay clave de API de TVDB configurada");
+            }
+
+            episodes = await _tvdb
+                .GetEpisodesAsync(
+                    tvdbId,
+                    configuration.TvdbApiKey,
+                    configuration.TvdbPin,
+                    preferred.IsAbsolute(),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (episodes.Count == 0)
+            {
+                return Fallback($"TVDB no publica los episodios de la serie {tvdbId}");
+            }
+        }
+        else
+        {
+            if (tmdbId is null)
+            {
+                return Fallback("el dataset no resuelve un id de TMDB y no hay ninguno escrito a mano");
+            }
+
+            if (!TmdbClient.IsConfigured(configuration.TmdbApiKey))
+            {
+                return Fallback("no hay clave de TMDB configurada");
+            }
+
+            episodes = await _tmdb
+                .GetEpisodesAsync(tmdbId, configuration.TmdbApiKey, configuration.TmdbLanguage, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (episodes.Count == 0)
+            {
+                return Fallback($"TMDB no publica los episodios de la serie {tmdbId}");
+            }
+        }
+
         var provider = ProviderNumbering.Assign(
             videos,
             episodes,
@@ -117,10 +154,10 @@ public sealed partial class ThreeCatSyncService
             ProviderAnchors.Parse(reference.Anchors));
         if (provider.UseThreeCat)
         {
-            return Fallback($"la numeración de TMDB no cubre la serie ({provider.Reason})");
+            return Fallback($"la numeración de {preferred.ProviderName()} no cubre la serie ({provider.Reason})");
         }
 
-        return new ProgramNumbering(MetadataSource.Tmdb, provider.Slots, tmdbId, tvdbId, imdbId, provider, null);
+        return new ProgramNumbering(preferred, provider.Slots, tmdbId, tvdbId, imdbId, provider, null);
     }
 
     /// <summary>

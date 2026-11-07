@@ -1,7 +1,7 @@
 ---
 name: "3Cat"
 guid: "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-version: "1.10.0.0"
+version: "1.11.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Crea una biblioteca de series con el catálogo a la carta de 3Cat (.strm + metadatos + subtítulos)."
@@ -16,7 +16,23 @@ owner: "Lowitle"
 artifacts:
   - "Jellyfin.Plugin.ThreeCat.dll"
 changelog: >
-  1.10.0.0: la tabla de programas deja de pedir a mano lo que el catálogo ya sabe, y la clasificación por tipo pasa
+  1.11.0.0: TVDB deja de ser una opción deshabilitada y pasa a ser una fuente de numeración completa, con su
+  propio orden absoluto. La fuente de metadatos elige ahora entre 3Cat, TMDB, TVDB y «TVDB absoluta» —global y por
+  programa—, y la vista previa del emparejamiento puede probar cualquiera de ellas sin cambiar antes la
+  configuración. Con TVDB el plugin inicia sesión con la clave de API del usuario —y su PIN de suscriptor, si la
+  clave es de suscripción—, guarda el token un mes en memoria y lee los episodios de la serie página a página: el
+  vídeo de 3Cat se empareja con el episodio de TVDB por las mismas evidencias que TMDB —anclas, fecha, contador
+  «capitol», título y orden—, y la temporada y el episodio que salen de ahí son los del nombre del fichero, del
+  `.nfo` y de la carpeta `Season NN`, con el `uniqueid` de TVDB en el `tvshow.nfo`. «TVDB absoluta» escribe el
+  programa entero como una sola temporada, numerada con el `absoluteNumber` de TVDB: es la numeración con la que se
+  archiva el anime cuando la emisión y la obra no coinciden, y si TVDB no publica ese orden el plugin cae al orden
+  de emisión y usa el número absoluto de cada episodio. Las dos fuentes nuevas se comportan como TMDB en lo demás:
+  si falta el id, si falta la clave, si el proveedor no responde o si el emparejamiento no llega a la mitad de los
+  vídeos, la serie entera se queda con la numeración de 3Cat y el registro dice por qué. La página estrena los
+  campos «Clave de API de TVDB» y «PIN de suscriptor de TVDB», que se guardan en la configuración del plugin y no se
+  escriben nunca en el registro; TheTVDB exige suscripción o licencia con atribución, así que la clave la pone cada
+  usuario. La configuración sube a la versión 6: una configuración migrada llega con los dos campos vacíos y todo
+  sigue numerándose como antes hasta que se escriba la clave.
   a ser una decisión por programa. La columna «Programa» junta el título y su referencia en una sola celda, y la
   tabla estrena la columna «Fuente de metadatos», que dice de dónde sale la ficha de cada serie. Las columnas del id
   de TMDB, de las anclas y de «También en» desaparecen: el id y las anclas se resuelven solos desde el dataset de
