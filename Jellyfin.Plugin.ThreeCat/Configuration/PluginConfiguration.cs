@@ -172,6 +172,17 @@ public class PluginConfiguration : BasePluginConfiguration
     public const int CurrentVersion = 6;
 
     /// <summary>
+    /// Version of the configuration that introduced <see cref="OrganizeByKind"/>, the folder per kind.
+    /// </summary>
+    /// <remarks>
+    /// The migration compares the stored version with this one and not with <see cref="CurrentVersion"/>:
+    /// the flag is only turned off for a configuration written before the layout existed, so a build that
+    /// only raises the schema —1.10.0.0 added the sub-libraries, 1.11.0.0 the TVDB numbering— never undoes
+    /// the layout the user asked for.
+    /// </remarks>
+    public const int LayoutVersion = 4;
+
+    /// <summary>
     /// Version of the file naming scheme written by this build.
     /// </summary>
     /// <remarks>

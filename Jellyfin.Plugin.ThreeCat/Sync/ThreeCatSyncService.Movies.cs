@@ -69,6 +69,8 @@ public sealed partial class ThreeCatSyncService
         List<ThreeCatVideo> videos,
         string root,
         string? mirrorRoot,
+        string? flatPath,
+        string? flatMirrorPath,
         Action<double> reportProgress,
         CancellationToken cancellationToken)
     {
@@ -218,9 +220,10 @@ public sealed partial class ThreeCatSyncService
         }
 
         // The folder of the program is the category, not the folder of a film: it is what lets the next run
-        // remove every film of the program when it changes of kind or of library.
-        RemoveMovedSeries(reference, programId, root);
-        RemoveMovedMirror(reference, programId, mirrorRoot);
+        // remove every film of the program when it changes of kind or of library. The flat layout wrote the
+        // program as a one-episode series in the destination folder, so that folder is cleaned too.
+        RemoveMovedSeries(reference, programId, root, flatPath);
+        RemoveMovedMirror(reference, programId, mirrorRoot, flatMirrorPath);
 
         _logger.LogInformation(
             "3Cat: {Program} → {Films} película(s) ({Skipped} sin URL, {Expired} caducadas), "

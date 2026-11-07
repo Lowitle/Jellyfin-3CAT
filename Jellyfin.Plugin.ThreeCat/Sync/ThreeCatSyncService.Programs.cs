@@ -95,6 +95,12 @@ public sealed partial class ThreeCatSyncService
         var mirrorRoot = ResolveMirrorRoot(configuration, reference);
         var mirrorPath = mirrorRoot is null || isMovie ? mirrorRoot : StrmLibrary.SeriesFolder(mirrorRoot, seriesTitle);
 
+        // The flat folder the layout of the kinds leaves behind: every build before 1.9.0.0 wrote the program
+        // straight in the destination folder, so the folder is cleaned as the program moves to the folder of
+        // its kind —also when no run recorded the old folder next to the program.
+        var flatPath = FlatSeriesFolder(destination, organized, seriesTitle);
+        var flatMirrorPath = FlatSeriesFolder(mirrorRoot, organized, seriesTitle);
+
         // 1.5.0.0 renames every episode file, so a folder written by an older build holds the same
         // episodes under the old names. It is deleted before writing it again — only when it is a
         // folder of this plugin for this program — so the library does not show both schemes. The
@@ -131,6 +137,8 @@ public sealed partial class ThreeCatSyncService
                 ordered,
                 root,
                 mirrorRoot,
+                flatPath,
+                flatMirrorPath,
                 reportProgress,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -315,8 +323,8 @@ public sealed partial class ThreeCatSyncService
         // The source is recorded next to the folder, so the next run knows whether the numbering of the
         // files still matches the configuration.
         reference.WrittenSource = numbering.Source;
-        RemoveMovedSeries(reference, programId, result.SeriesPath);
-        RemoveMovedMirror(reference, programId, mirrorRoot is null ? null : mirror.SeriesPath);
+        RemoveMovedSeries(reference, programId, result.SeriesPath, flatPath);
+        RemoveMovedMirror(reference, programId, mirrorRoot is null ? null : mirror.SeriesPath, flatMirrorPath);
 
         _libraryMonitor.ReportFileSystemChanged(result.SeriesPath);
 
@@ -443,14 +451,21 @@ public sealed partial class ThreeCatSyncService
     /// <param name="reference">Program reference, whose <c>WrittenPath</c> is updated.</param>
     /// <param name="programId">3Cat program id, used to make sure the old folder is the one of this program.</param>
     /// <param name="seriesPath">Folder written by this run.</param>
+    /// <param name="flatPath">
+    /// Folder the flat layout wrote the series to, or <c>null</c> when the layout of the kinds is off.
+    /// </param>
     /// <remarks>
     /// The old folder is only removed when it holds nothing but files of this plugin and its
     /// <c>tvshow.nfo</c> names this program, so a folder the user filled with something else is kept. The
     /// new path is always recorded, so a removal that fails is retried on the next run.
     /// </remarks>
-    private void RemoveMovedSeries(ThreeCatProgramReference reference, string programId, string seriesPath)
+    private void RemoveMovedSeries(
+        ThreeCatProgramReference reference,
+        string programId,
+        string seriesPath,
+        string? flatPath)
     {
-        var previous = reference.WrittenPath?.Trim();
+        var previous = RecordedFolder(reference.WrittenPath, flatPath, seriesPath);
         reference.WrittenPath = seriesPath;
         RemoveMovedFolder(previous, seriesPath, programId, "biblioteca del plugin");
     }
@@ -463,12 +478,57 @@ public sealed partial class ThreeCatSyncService
     /// <param name="reference">Program reference, whose <c>WrittenMirror</c> is updated.</param>
     /// <param name="programId">3Cat program id, used to make sure the old folder is the one of this program.</param>
     /// <param name="seriesPath">Mirrored folder written by this run, or <c>null</c> when there is no mirror.</param>
-    private void RemoveMovedMirror(ThreeCatProgramReference reference, string programId, string? seriesPath)
+    /// <param name="flatPath">
+    /// Folder the flat layout wrote the series to inside the mirror, or <c>null</c> when there is no mirror
+    /// or the layout of the kinds is off.
+    /// </param>
+    private void RemoveMovedMirror(
+        ThreeCatProgramReference reference,
+        string programId,
+        string? seriesPath,
+        string? flatPath)
     {
-        var previous = reference.WrittenMirror?.Trim();
+        var previous = RecordedFolder(reference.WrittenMirror, flatPath, seriesPath);
         reference.WrittenMirror = seriesPath ?? string.Empty;
         RemoveMovedFolder(previous, seriesPath, programId, "biblioteca espejo");
     }
+
+    /// <summary>
+    /// Resolves the folder a previous run wrote: the one the configuration records, or the folder of the
+    /// flat layout when no run recorded one.
+    /// </summary>
+    /// <param name="recorded">Folder the configuration records, if any.</param>
+    /// <param name="flatPath">Folder of the flat layout, or <c>null</c> when it does not apply.</param>
+    /// <param name="current">Folder written by this run, or <c>null</c> when it is not written anymore.</param>
+    /// <returns>The folder to clean, or <c>null</c> when there is nothing to clean.</returns>
+    /// <remarks>
+    /// A library written by a build that did not keep the folder next to the program —or a configuration
+    /// that lost it— has the series in the flat destination folder, which the layout of the kinds leaves
+    /// behind: the series is then written in the folder of its kind and the flat folder is cleaned, so the
+    /// library does not keep the program twice. The flat folder is never cleaned when it is the folder of
+    /// this run, which is the case with the layout off.
+    /// </remarks>
+    internal static string? RecordedFolder(string? recorded, string? flatPath, string? current)
+    {
+        if (!string.IsNullOrWhiteSpace(recorded))
+        {
+            return recorded;
+        }
+
+        return LibraryPath.SamePath(flatPath, current) ? null : flatPath;
+    }
+
+    /// <summary>
+    /// Builds the folder the flat layout —every build before 1.9.0.0— wrote a series to.
+    /// </summary>
+    /// <param name="rootPath">Destination folder or mirror root.</param>
+    /// <param name="organized">Whether the programs are written one folder per kind.</param>
+    /// <param name="seriesTitle">Series title.</param>
+    /// <returns>The folder of the flat layout, or <c>null</c> when the layout of the kinds is off.</returns>
+    internal static string? FlatSeriesFolder(string? rootPath, bool organized, string seriesTitle)
+        => organized && !string.IsNullOrWhiteSpace(rootPath)
+            ? StrmLibrary.SeriesFolder(rootPath, seriesTitle)
+            : null;
 
     /// <summary>
     /// Removes the series folder of a previous run, whatever the reason the series is not written there

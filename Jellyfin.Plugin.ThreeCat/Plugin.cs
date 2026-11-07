@@ -1,6 +1,5 @@
 using System.Globalization;
 using Jellyfin.Plugin.ThreeCat.Configuration;
-using Jellyfin.Plugin.ThreeCat.Sync;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
@@ -65,55 +64,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// <summary>
     /// Brings the stored settings forward to the current schema.
     /// </summary>
-    /// <remarks>
-    /// The migration repairs the collections that the XML serializer leaves as <c>null</c> when it reads a
-    /// configuration written by an older build, which would otherwise make the refresh task throw a
-    /// <see cref="NullReferenceException"/>, and stamps the version of the schema: version 2 no longer has
-    /// subtitle languages (every published track is downloaded), so the elements written by version 1 are
-    /// dropped when the configuration is saved again.
-    /// </remarks>
     /// <param name="configuration">Stored configuration.</param>
     private void MigrateConfiguration(PluginConfiguration configuration)
     {
-        var changed = false;
-
-        if (configuration.Programs is null)
-        {
-            configuration.Programs = [];
-            changed = true;
-        }
-
-        // The sub-libraries of 1.10.0.0 are a list the XML serializer leaves as null when it reads a
-        // configuration written by an older build.
-        if (configuration.KindLibraries is null)
-        {
-            configuration.KindLibraries = [];
-            changed = true;
-        }
-
-        // A configuration written before the dataset existed (or with the field emptied by hand) points
-        // at the dataset the plugin publishes.
-        if (string.IsNullOrWhiteSpace(configuration.OpenTvIdsUrl))
-        {
-            configuration.OpenTvIdsUrl = OpenTvIdsClient.DefaultUrl;
-            changed = true;
-        }
-
-        // The folder layout of 1.9.0.0 moves every program to a folder of its kind, and Jellyfin reads the
-        // moved series again: a configuration written by an older build keeps the flat destination folder
-        // until the user asks for the change from the page. A fresh installation starts organised.
-        if (configuration.ConfigurationVersion < PluginConfiguration.CurrentVersion)
-        {
-            configuration.OrganizeByKind = false;
-        }
-
-        if (configuration.ConfigurationVersion < PluginConfiguration.CurrentVersion)
-        {
-            configuration.ConfigurationVersion = PluginConfiguration.CurrentVersion;
-            changed = true;
-        }
-
-        if (changed)
+        if (ConfigurationMigration.Migrate(configuration))
         {
             UpdateConfiguration(configuration);
         }

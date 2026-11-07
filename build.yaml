@@ -1,7 +1,7 @@
 ---
 name: "3Cat"
 guid: "d8b0f3a2-6c4e-4f0a-9e1b-2c3d4e5f6a7b"
-version: "1.11.0.0"
+version: "1.11.0.1"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Crea una biblioteca de series con el catálogo a la carta de 3Cat (.strm + metadatos + subtítulos)."
@@ -16,6 +16,15 @@ owner: "Lowitle"
 artifacts:
   - "Jellyfin.Plugin.ThreeCat.dll"
 changelog: >
+  1.11.0.1: instalar una versión nueva del plugin deja de desactivar la organización por tipo. La migración de
+  la configuración apagaba la casilla «Organizar los programas por tipo» cada vez que subía la versión del
+  esquema, y no solo la primera vez que apareció el layout: al actualizar desde 1.11.0.0 el plugin volvía a
+  escribir las series en la carpeta madre mientras las bibliotecas indexaban las subcarpetas de los tipos, así
+  que la biblioteca «3Cat» aparecía vacía y las carpetas antiguas se quedaban donde estaban. Ahora la casilla
+  solo se apaga en una configuración escrita antes de 1.9.0.0, que es la que nunca la tuvo, y la elección del
+  usuario sobrevive a las actualizaciones. Además, cuando una serie se mueve a la carpeta de su tipo el plugin
+  borra también la carpeta plana antigua aunque ninguna ejecución anterior hubiera anotado su ruta: la limpieza
+  sigue exigiendo que la carpeta sea del plugin y que su tvshow.nfo lleve el id del programa.
   1.11.0.0: TVDB deja de ser una opción deshabilitada y pasa a ser una fuente de numeración completa, con su
   propio orden absoluto. La fuente de metadatos elige ahora entre 3Cat, TMDB, TVDB y «TVDB absoluta» —global y por
   programa—, y la vista previa del emparejamiento puede probar cualquiera de ellas sin cambiar antes la
