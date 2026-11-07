@@ -8,6 +8,14 @@
   "category": "General",
   "versions": [
     {
+      "version": "1.11.0.1",
+      "changelog": "3Cat 1.11.0.1",
+      "targetAbi": "10.11.0.0",
+      "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.11.0.1/threecat_1.11.0.1.zip",
+      "checksum": "BA93E73B25281A287962A43AEC329EBA",
+      "timestamp": "2026-11-07T16:29:30Z"
+    },
+    {
       "version": "1.11.0.0",
       "changelog": "TVDB deja de ser una opción deshabilitada y pasa a ser una fuente de numeración completa, con su propio orden absoluto. La fuente de metadatos elige ahora entre 3Cat, TMDB, TVDB y «TVDB absoluta», global y por programa, y la vista previa del emparejamiento puede probar cualquiera de ellas sin cambiar antes la configuración. Con TVDB el plugin pide la clave de API del usuario —y el PIN de suscriptor, si la clave es de suscripción—, cambia la clave por un token que guarda un mes en memoria y lee los episodios de la serie página a página: el vídeo de 3Cat se empareja con el episodio de TVDB por las mismas evidencias que TMDB (anclas, fecha, contador capitol, título y orden), y la temporada y el episodio que salen de ahí son los del nombre del fichero, del .nfo y de la carpeta Season NN, con el uniqueid de TVDB en el tvshow.nfo. «TVDB absoluta» escribe el programa entero como una sola temporada, numerada con el número absoluto de TVDB: es la numeración con la que se archiva el anime cuando la emisión y la obra no coinciden, y si TVDB no publica ese orden el plugin lee el de emisión y usa el número absoluto de cada episodio. Si falta el id, si falta la clave, si el proveedor no responde o si el emparejamiento no llega a la mitad de los vídeos, la serie entera se queda con la numeración de 3Cat y el registro dice por qué. La página estrena los campos «Clave de API de TVDB» y «PIN de suscriptor de TVDB», que se guardan en la configuración del plugin y no se escriben nunca en el registro; TheTVDB exige suscripción o licencia con atribución, así que la clave la pone cada usuario. La configuración sube a la versión 6: una configuración migrada llega con los dos campos vacíos y todo sigue numerándose como antes hasta que se escriba la clave.",
       "targetAbi": "10.11.0.0",
