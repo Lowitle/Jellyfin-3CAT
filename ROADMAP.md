@@ -1,8 +1,59 @@
 # Hoja de ruta
 
-Notas de trabajo. Estado de la **v1.5.0.0**: los puntos 1 (numeración), 2 (desplegable ilegible) y
-3 (espejo de bibliotecas) están implementados y probados; queda por decidir el 4 (películas), que se
-plantea más abajo. `README.md` y `resumen.md` ya describen el comportamiento de 1.5.0.0.
+Notas de trabajo. Estado de la **v1.10.0.0**: la tabla de programas, la clasificación por programa y las
+sub-bibliotecas por tipo están implementadas y probadas, y `README.md` y `resumen.md` describen el
+comportamiento de 1.10.0.0. Las notas de 1.5.0.0 se conservan como registro de las decisiones
+anteriores —numeración, desplegable de biblioteca, espejo y películas—, que siguen explicando por qué el
+código es como es.
+
+## v1.10.0.0
+
+### 1. La tabla de programas deja de pedir lo que ya se sabe (implementado)
+
+**Decisión.** La tabla enseña lo que el usuario decide, no lo que el plugin deduce. El título y la
+referencia comparten celda —el `programatv_id` es un dato de consulta, no una columna que se ordene— y
+desaparecen las columnas del id de TMDB, de las anclas y de la copia por programa: el id y las anclas se
+resuelven con el dataset de identificadores y se revisan en la vista previa de la numeración, y una
+segunda copia dejó de ser una decisión por programa. La columna **Fuente de metadatos** se queda, porque
+es una elección por programa que ninguna otra vista muestra.
+
+**Compatibilidad.** Nada de lo que sale de la tabla se pierde: `TmdbId`, `Anchors` y `DestinationPath`
+siguen en `ThreeCatProgramReference`, la tarea los sigue leyendo y la página los reescribe tal cual al
+guardar. Una copia configurada por una versión anterior se muestra bajo la clasificación, con el botón
+que la quita.
+
+### 2. La clasificación se fija por programa (implementado)
+
+**Decisión.** El tipo de programa —la carpeta donde se escribe— pasa a ser una decisión del usuario y no
+solo un efecto del catálogo. La columna **Clasificación** muestra el tipo que resolvió la última
+ejecución («Automático (Anime)») y permite fijar otro, que se guarda en
+`ThreeCatProgramReference.CategoryOverride` y gana en la siguiente ejecución
+(`LibraryCategory.Resolve(classification, pinned)`).
+
+**Límites.** Fijar la clasificación cambia la carpeta, nunca los géneros: un documental movido a
+«Infantil» sigue llevando «Documental» como primer género, porque los dos datos vienen del catálogo y
+una biblioteca filtrada por género no puede contradecir a la carpeta. «Movies» no se puede fijar: no es
+una carpeta, es la forma de los archivos (una película se escribe como película), y `LibraryCategory`
+ignora el valor. Un valor que no sea una carpeta del layout tampoco se inventa.
+
+**Caché.** La clasificación es un barrido de las facetas del buscador de 3Cat, así que la página no
+puede calcularla: la última ejecución deja el resultado en `ThreeCatProgramReference.Category`, que es
+lo que la columna muestra cuando el valor es automático.
+
+### 3. Sub-bibliotecas por tipo, sin copiar archivos (implementado)
+
+**Decisión.** Una biblioteca curada («Anime», «Infantil», «Documentals»…) se prepara añadiendo la
+carpeta de un tipo a una biblioteca que ya exista, no copiando los archivos de cada programa: Jellyfin
+indexa una carpeta en todas las bibliotecas que la apuntan, así que el programa aparece en «3Cat» y en
+la curada con un solo juego de archivos y cada biblioteca lleva su propio «visto». La página guarda
+pares tipo → biblioteca en `PluginConfiguration.KindLibraries` y los aplica con
+`LibraryProvisioner.Attach`, que es idempotente: aplicar dos veces el mismo tipo no duplica la carpeta.
+
+**Por qué es manual.** Añadir una carpeta indexada cambia la biblioteca del usuario, así que es una
+decisión suya, con su botón («Aplicar a las bibliotecas»), y nunca un efecto secundario de guardar la
+página o de una actualización. `POST ThreeCat/Library/Kinds` lee la configuración guardada —la página
+guarda antes de pedirlo— y `GET ThreeCat/Library/Categories` es lo que llena la tabla: los nombres de
+las carpetas se escriben una sola vez, en `LibraryCategory`.
 
 ## v1.5.0.0
 

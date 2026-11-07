@@ -76,7 +76,12 @@ public sealed partial class ThreeCatSyncService
             cancellationToken).ConfigureAwait(false);
 
         var organized = configuration.OrganizeByKind;
-        var category = LibraryCategory.Resolve(classification);
+        var category = LibraryCategory.Resolve(classification, reference.CategoryOverride);
+
+        // The kind of program is kept next to the program: the classification is a sweep of the facets of
+        // the 3Cat search endpoint, so the configuration page cannot compute it and shows this cache in the
+        // «Clasificación» column instead.
+        reference.Category = category;
         var isMovie = organized && string.Equals(category, LibraryCategory.Movies, StringComparison.Ordinal);
 
         // The program is always written in the destination folder of the plugin, which is the library the

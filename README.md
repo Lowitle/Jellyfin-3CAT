@@ -109,9 +109,9 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
   empieza en el episodio 1 de TMDB), `T21xC1=858`, `T22xC6=907` o `T1xC1=S01E01`, separadas por `;`. Su papel
   con el contador es calibrar el **desfase** entre los dos contadores con una sola línea (y así lo dice la
   vista previa); sin contador, el plugin coloca las anclas y numera el resto caminando la lista de TMDB hacia
-  arriba y abajo, parando en la temporada siguiente o en el episodio que otra ancla ya ha reclamado. Se ven en
-  la tabla de programas (columna **Anclas**) y en la propia vista previa, que además lista las temporadas de
-  3Cat con su `capitol` para escribirlas sin abrir el catálogo, y dice cuántas anclas se han podido colocar.
+  arriba y abajo, parando en la temporada siguiente o en el episodio que otra ancla ya ha reclamado. Se ven
+  en la vista previa de la numeración, que además lista las temporadas de 3Cat con su `capitol` para
+  escribirlas sin abrir el catálogo, y dice cuántas anclas se han podido colocar.
 - **MP4 progresivo**: cada `.strm` contiene la URL `media.url[0].file` del endpoint de detalle
   (`api-media.3cat.cat`), que responde 200/206 con `Accept-Ranges: bytes` y permite *seek* y
   transcodificación directa.
@@ -140,18 +140,24 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
   funcionando y la biblioteca se filtra por «Infantil». El canal de la familia SX3 (`PUC_S3`,
   `PUC_S3_S3`, `PUC_S3_X3`) hace de respaldo cuando un vídeo no publica público. El catálogo de la página
   de configuración marca esos programas en la columna **Categoría** y añade «Infantil» al filtro.
-- **La serie en la biblioteca del plugin y, opcionalmente, en otra**: cada programa se escribe siempre
-  en la carpeta de destino del plugin. La columna **También en** de la lista de programas guarda además
-  una copia en la carpeta de otra biblioteca de Jellyfin («Anime», «Infantil», «Programas de TV»…), para
-  que esa biblioteca la muestre con sus propias etiquetas. La copia son los mismos ficheros ligeros
-  (`.strm`, `.nfo`, subtítulos y carátulas), así que la serie aparece dos veces en el servidor y cada
-  biblioteca lleva su propio «visto». Quitar la carpeta de la columna borra solo la copia, y si la serie
-  cambia de nombre la carpeta antigua del espejo se elimina igual que la de la biblioteca del plugin:
-  solo cuando contiene únicamente archivos suyos y su `tvshow.nfo` identifica el programa. Una carpeta que
-  ya no existe o no admite escritura no rompe la tarea: ese programa se queda solo en la biblioteca del
-  plugin, con un aviso en el registro. Si en la carpeta elegida ya hay una serie con el mismo nombre, el
-  plugin escribe encima sus archivos de metadatos y episodios, así que conviene comprobar antes qué hay en
-  esa biblioteca.
+- **Un tipo de programa por carpeta, y cada tipo en la biblioteca que se quiera**: cada programa se
+  escribe siempre en la carpeta de destino del plugin, dentro de la subcarpeta de su tipo («Programes TV»,
+  «Series», «Documentals», «Anime», «Infantil», «Movies»). La columna **Clasificación** de la lista de
+  programas dice a qué carpeta va cada uno y deja fijarla a mano: «Automàtic» la resuelve con el mismo
+  criterio que el primer género —el anime por delante del público, el público por delante del tipo y las
+  películas por delante de todo—, y elegir otra carpeta mueve la serie sin tocar sus géneros, que siguen
+  saliendo del catálogo de 3Cat. «Movies» no se puede fijar: cambia la forma de los archivos, no la
+  carpeta, así que un programa que 3Cat archiva como documental sigue siendo un documental.
+- **Una carpeta, varias bibliotecas**: la tabla **Sub-bibliotecas por tipo** añade la carpeta de un tipo
+  a una biblioteca que ya exista («Anime» a la biblioteca «Anime» del servidor, «Movies» a «Películas»…).
+  Jellyfin indexa la misma carpeta en todas las bibliotecas que la apuntan, así que el programa aparece
+  en «3Cat» y en la curada con un solo juego de archivos y cada biblioteca lleva su propio «visto», sin
+  duplicar nada. El alta es manual —se aplica con el botón **Aplicar a las bibliotecas** y nunca como
+  efecto secundario de una actualización— y funciona con cualquier biblioteca del servidor, no solo con
+  las que crea el plugin. Los programas que ya tenían asignada otra biblioteca en la versión anterior
+  conservan su copia espejo: la página la muestra bajo la clasificación como **Copia aparte** y ofrece
+  quitarla, que borra solo la copia (solo cuando la carpeta contiene únicamente archivos suyos y su
+  `tvshow.nfo` identifica el programa).
 - **Carátulas**: descarga `poster.jpg` del programa y `fanart.jpg` desde las imágenes del catálogo
   (`sdom=img`).
 - **Subtítulos** (opcionales): descarga los WebVTT de 3Cat y los convierte a SRT junto a cada episodio
@@ -171,9 +177,10 @@ Si nada de eso lo resuelve, instala a mano (ver arriba): la instalación manual 
 
 | Campo | Por defecto | Descripción |
 | --- | --- | --- |
-| **Programas** | vacío | Lista de programas a replicar, por `programatv_id` o por URL de un vídeo. Al pulsar **Añadir** el plugin valida la referencia y guarda el título del programa, que es el nombre de la carpeta de la serie. **Ver todos los programas** abre la tabla del catálogo completo de 3Cat para buscarlos y añadirlos de una vez. La columna **También en** guarda una copia de la serie en la carpeta de otra biblioteca de Jellyfin además de la de destino. |
-| **Carpeta de destino** | vacío | Carpeta raíz donde se escriben los programas. **Comprobar carpeta** verifica que existe y que Jellyfin puede escribir; **Crear biblioteca «3Cat»** la da de alta como biblioteca de series (y, con la organización por tipo, prepara además la de películas). Es la carpeta que el plugin escribe siempre, con copia o sin ella. |
+| **Programas** | vacío | Lista de programas a replicar, por `programatv_id` o por URL de un vídeo. Al pulsar **Añadir** el plugin valida la referencia y guarda el título del programa, que es el nombre de la carpeta de la serie. **Ver todos los programas** abre la tabla del catálogo completo de 3Cat para buscarlos y añadirlos de una vez. La columna **Clasificación** de la tabla de programas resuelve o fija a mano el tipo de cada programa, que es la carpeta donde se escribe. |
+| **Carpeta de destino** | vacío | Carpeta raíz donde se escriben los programas. **Comprobar carpeta** verifica que existe y que Jellyfin puede escribir; **Crear biblioteca «3Cat»** la da de alta como biblioteca de series (y, con la organización por tipo, prepara además la de películas). Es la carpeta donde el plugin escribe siempre cada programa. |
 | **Organizar los programas por tipo** | activado | Escribe cada programa en la subcarpeta de su tipo —«Programes TV», «Series», «Documentals», «Anime», «Infantil» y «Movies»— y el cine como películas (`movie.nfo`, «Título (Año)») en lugar de como una serie de un episodio. «Crear biblioteca» prepara una biblioteca de «Programas de TV» con las carpetas de las series y una de «Películas» con «Movies», y una biblioteca curada puede apuntar a una sola subcarpeta sin duplicar ningún archivo. La primera actualización tras activarlo mueve cada programa a su carpeta y borra la anterior, así que Jellyfin las vuelve a leer una vez. Desactivado, todo se escribe directamente en la carpeta de destino. |
+| **Sub-bibliotecas por tipo** | vacío | Añade la carpeta de un tipo a una biblioteca que ya exista en el servidor, para ver el anime, los documentales o las películas en su propia biblioteca sin duplicar un archivo: Jellyfin indexa la misma carpeta en todas las bibliotecas que la apuntan. El alta es manual, con el botón **Aplicar a las bibliotecas**, y nunca un efecto secundario de la actualización; aplicar dos veces el mismo tipo no añade la carpeta dos veces. |
 | **Intervalo de actualización (horas)** | `12` | Periodicidad de la tarea programada «Actualizar 3Cat». La tarea también se lanza al arrancar el servidor. |
 | **Máximo de episodios por programa** | `0` | `0` escribe todos los vídeos del catálogo; un valor positivo se queda con los más recientes. |
 | **Escribir archivos .nfo** | activado | Genera `tvshow.nfo` y un `.nfo` por episodio. Es la fuente de metadatos de la biblioteca. |
@@ -205,12 +212,16 @@ El botón **Ejecutar ahora** guarda la configuración y lanza la tarea sin esper
    deja con monitorización en tiempo real activada, así que los `.strm` nuevos aparecen solos.
 
 > **Bibliotecas curadas sin copias**: con **Organizar los programas por tipo** activado, el anime o los
-> programas infantiles pueden tener su propia biblioteca sin duplicar nada: crea en Jellyfin una
-> biblioteca de *Programas de TV* que apunte a `<Carpeta de destino>/Anime` o
-> `<Carpeta de destino>/Infantil`. Jellyfin indexa la misma carpeta en todas las bibliotecas que la
-> apuntan, así que el programa aparece en «3Cat» y en la curada con un solo juego de archivos. La columna
-> **También en** sigue disponible para lo que sí es otra copia: otro disco, otro servidor de archivos u
-> otra biblioteca de otro nombre.
+> programas infantiles pueden tener su propia biblioteca sin duplicar nada. En lugar de crear la
+> biblioteca a mano y escribir la ruta, elige la biblioteca en la tabla **Sub-bibliotecas por tipo** del
+> tipo que quieras —«Anime», «Infantil», «Documentals», «Programes TV», «Series» o «Movies»— y pulsa
+> **Aplicar a las bibliotecas**: el plugin añade a esa biblioteca la carpeta del tipo, con lo que
+> Jellyfin indexa los mismos archivos en «3Cat» y en la curada y cada una lleva su propio «visto». Si la
+> biblioteca curada es nueva, créala primero vacía (de tipo *Programas de TV* para los tipos de serie, de
+> tipo *Películas* para «Movies») y no hace falta que apunte a ninguna carpeta: la tabla se la añade.
+> Una biblioteca puede indexar varias carpetas de tipos distintos, y el mismo tipo no se añade dos veces.
+> Para lo que sí es otra copia —otro disco, otro servidor de archivos— sigue existiendo la copia espejo
+> por programa de la versión anterior, que la página conserva y permite quitar.
 
 > **Docker**: monta un volumen dedicado (`-v /srv/3cat:/media/3cat`) y escribe en *Carpeta de destino*
 > la ruta **del contenedor** (`/media/3cat`), no la del host. La ruta debe ser escribible por el usuario
@@ -253,9 +264,9 @@ carpeta de destino se divide por tipo de programa:
 ```
 
 - Un `.strm` por emisión con una sola línea: la URL del MP4.
-- La carpeta del programa se crea siempre dentro de la carpeta de destino del plugin. Si el programa tiene
-  asignada otra biblioteca en la columna **También en**, la misma estructura se escribe otra vez en la
-  carpeta de esa biblioteca, carátulas incluidas.
+- La carpeta del programa se crea siempre dentro de la carpeta de destino del plugin, en la subcarpeta
+  de su tipo. Si el programa conserva la copia a otra biblioteca de la versión anterior, la misma
+  estructura se escribe otra vez en la carpeta de esa biblioteca, carátulas incluidas.
 - `tvshow.nfo` se escribe una vez por serie; los `.nfo` de episodio llevan título, sinopsis, fecha,
   duración y temporada/episodio.
 - Las temporadas son las del título de 3Cat: `Season 22` para los `T22xCx` y `Season 0` para las

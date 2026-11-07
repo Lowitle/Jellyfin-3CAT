@@ -83,6 +83,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             changed = true;
         }
 
+        // The sub-libraries of 1.10.0.0 are a list the XML serializer leaves as null when it reads a
+        // configuration written by an older build.
+        if (configuration.KindLibraries is null)
+        {
+            configuration.KindLibraries = [];
+            changed = true;
+        }
+
         // A configuration written before the dataset existed (or with the field emptied by hand) points
         // at the dataset the plugin publishes.
         if (string.IsNullOrWhiteSpace(configuration.OpenTvIdsUrl))

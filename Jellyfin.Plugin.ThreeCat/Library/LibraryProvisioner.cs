@@ -129,6 +129,95 @@ public static class LibraryProvisioner
     }
 
     /// <summary>
+    /// Adds a folder of the plugin to a library that already exists, so a curated library («Anime»,
+    /// «Infantil»...) also indexes the programs of that kind.
+    /// </summary>
+    /// <param name="libraryManager">Library manager of the server.</param>
+    /// <param name="libraryName">Name of the library the folder is added to.</param>
+    /// <param name="folder">Folder the library has to index.</param>
+    /// <param name="logger">Logger.</param>
+    /// <param name="libraryMonitor">Library monitor used to tell Jellyfin about the folder.</param>
+    /// <returns>The result of the operation.</returns>
+    /// <remarks>
+    /// Nothing is copied: Jellyfin indexes the same folder in every library that points at it, so the
+    /// programs keep being written once, by the «3Cat» library, and the curated one only reads them. A
+    /// library that already indexes the folder is left alone, so applying the table twice is harmless.
+    /// </remarks>
+    public static LibraryProvisionStatus Attach(
+        ILibraryManager libraryManager,
+        string libraryName,
+        string folder,
+        ILogger logger,
+        ILibraryMonitor? libraryMonitor = null)
+    {
+        ArgumentNullException.ThrowIfNull(libraryManager);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        var name = libraryName?.Trim() ?? string.Empty;
+        var normalized = LibraryIO.Normalize(folder);
+
+        if (name.Length == 0 || normalized is null)
+        {
+            return new LibraryProvisionStatus(
+                false,
+                "invalid",
+                name,
+                "La biblioteca o la carpeta de 3Cat no son válidas.",
+                []);
+        }
+
+        var library = (libraryManager.GetVirtualFolders() ?? [])
+            .FirstOrDefault(candidate => string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
+
+        if (library is null)
+        {
+            return new LibraryProvisionStatus(
+                false,
+                "invalid",
+                name,
+                $"No existe ninguna biblioteca «{name}» en el servidor. Créala desde el panel de bibliotecas o elige otra.",
+                []);
+        }
+
+        if (Owns(library, normalized))
+        {
+            return new LibraryProvisionStatus(
+                true,
+                "existing",
+                library.Name,
+                $"La biblioteca «{library.Name}» ya indexa {normalized}.",
+                Folders(library));
+        }
+
+        try
+        {
+            Directory.CreateDirectory(normalized);
+            libraryManager.AddMediaPath(library.Name!, new MediaPathInfo(normalized));
+            libraryMonitor?.ReportFileSystemChanged(normalized);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            logger.LogError(ex, "3Cat: no se pudo añadir {Folder} a la biblioteca {Library}", normalized, name);
+
+            return new LibraryProvisionStatus(
+                false,
+                "conflict",
+                library.Name,
+                $"No se pudo añadir «{normalized}» a la biblioteca «{name}»: {ex.Message}",
+                Folders(library));
+        }
+
+        logger.LogInformation("3Cat: carpeta {Folder} añadida a la biblioteca {Library}", normalized, name);
+
+        return new LibraryProvisionStatus(
+            true,
+            "updated",
+            library.Name,
+            $"La carpeta de 3Cat «{normalized}» se ha añadido a la biblioteca «{name}».",
+            [.. Folders(library), normalized]);
+    }
+
+    /// <summary>
     /// Adds the folders the library does not index yet, and takes the destination folder out when the
     /// library pointed at it and the programs now live one level down.
     /// </summary>

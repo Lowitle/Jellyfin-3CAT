@@ -87,6 +87,52 @@ public sealed class ConfigPageTests
         Assert.Contains("config.OrganizeByKind = document.querySelector('#ThreeCatOrganizeByKind').checked;", page, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Page_ShowsTheVersionOfThePluginTheServerIsRunning()
+    {
+        // A page cached by the browser keeps showing the old layout after an update, and a plugin that was
+        // installed but not loaded looks exactly like one that changed nothing: the version next to the
+        // title is what tells the two apart.
+        var page = ReadPage();
+
+        Assert.Contains("id=\"ThreeCatVersion\"", page, StringComparison.Ordinal);
+        Assert.Contains("threeCatLoadVersion();", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Page_ReplacesTheMirrorAndTheManualIdsWithTheKindOfProgram()
+    {
+        // The kind of program is what the table shows now: the TMDB id and the anchors come from the
+        // identity dataset, and a second copy is a sub-library of the whole kind, not a column.
+        var page = ReadPage();
+
+        Assert.Contains("<th style=\"width: 28%\">Clasificación</th>", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("ThreeCatProgramTmdb-", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("ThreeCatProgramAnchors-", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("ThreeCatProgramLibrary-", page, StringComparison.Ordinal);
+
+        // The reference is not lost: it goes under the title of the program.
+        Assert.Contains("threeCatMono threeCatReference", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Page_SavesTheKindOfProgramAndTheSubLibraries()
+    {
+        var page = ReadPage();
+
+        Assert.Contains("CategoryOverride: program.CategoryOverride || null,", page, StringComparison.Ordinal);
+        Assert.Contains(
+            "config.KindLibraries = ThreeCatConfig.kindLibraries.map(function (entry) {",
+            page,
+            StringComparison.Ordinal);
+
+        // The table of sub-libraries reads the kinds of program from the server, so the folders of the
+        // layout are named once, in LibraryCategory.
+        Assert.Contains("id=\"ThreeCatKindsBody\"", page, StringComparison.Ordinal);
+        Assert.Contains("threeCatUrl('Library/Categories')", page, StringComparison.Ordinal);
+        Assert.Contains("threeCatUrl('Library/Kinds')", page, StringComparison.Ordinal);
+    }
+
     private static string ReadPage()
     {
         var assembly = typeof(Plugin).Assembly;

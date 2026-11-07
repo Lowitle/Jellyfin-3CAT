@@ -16,11 +16,14 @@ public sealed class PluginConfigurationTests
 
         Assert.Equal(MetadataSource.ThreeCat, configuration.MetadataSource);
         Assert.Equal(OpenTvIdsClient.DefaultUrl, configuration.OpenTvIdsUrl);
-        Assert.Equal(4, PluginConfiguration.CurrentVersion);
+        Assert.Equal(5, PluginConfiguration.CurrentVersion);
 
         // A fresh installation writes the programs one folder per kind: the layout of 1.9.0.0 is the one
         // the page shows and the one «Crear biblioteca» prepares out of the box.
         Assert.True(configuration.OrganizeByKind);
+
+        // No kind of program is attached to a second library until the user chooses one.
+        Assert.Empty(configuration.KindLibraries);
 
         // Without a key and with a language, the plugin is in the state of a fresh installation: TMDB is
         // never read until the user asks for it.
@@ -37,6 +40,10 @@ public sealed class PluginConfigurationTests
         Assert.Null(reference.Override);
         Assert.Null(reference.TmdbId);
         Assert.Null(reference.TvdbId);
+
+        // The kind of program is automatic until it is pinned, and nothing is cached until a run resolves it.
+        Assert.Null(reference.CategoryOverride);
+        Assert.Null(reference.Category);
 
         // The source the last run wrote is empty until a run reaches the program: a fresh installation
         // must never delete a folder.

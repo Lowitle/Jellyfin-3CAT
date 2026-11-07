@@ -110,6 +110,62 @@ internal static class LibraryCategory
     }
 
     /// <summary>
+    /// Resolves the folder a program is written to, honouring the kind the user pinned for it.
+    /// </summary>
+    /// <param name="classification">Kind of program and genres of the series.</param>
+    /// <param name="pinned">
+    /// Kind of program the user pinned, or <c>null</c> to keep the classification. «Movies» is ignored: the
+    /// shape of the files (a series or a film) follows the catalog of 3Cat, never a folder choice.
+    /// </param>
+    /// <returns>The folder of the program, relative to the destination folder.</returns>
+    internal static string Resolve(ProgramClassification? classification, string? pinned)
+    {
+        var normalized = Normalize(pinned);
+
+        if (normalized is not null && IsSeriesCategory(normalized))
+        {
+            return normalized;
+        }
+
+        return Resolve(classification);
+    }
+
+    /// <summary>
+    /// Normalizes the name of a kind of program to the folder of the layout.
+    /// </summary>
+    /// <param name="category">Name typed or stored in the configuration, in any casing.</param>
+    /// <returns>The folder of the kind, or <c>null</c> when it is not one of the folders of the layout.</returns>
+    internal static string? Normalize(string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+        {
+            return null;
+        }
+
+        foreach (var folder in All)
+        {
+            if (Same(category, folder))
+            {
+                return folder;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Tells whether a kind of program is written as a series, which is every folder but the films.
+    /// </summary>
+    /// <param name="category">Name of the kind, in any casing.</param>
+    /// <returns><c>true</c> when the programs of that kind are series.</returns>
+    internal static bool IsSeriesCategory(string? category)
+    {
+        var normalized = Normalize(category);
+
+        return normalized is not null && SeriesFolders.Any(folder => Same(folder, normalized));
+    }
+
+    /// <summary>
     /// Builds the folder a category is written to.
     /// </summary>
     /// <param name="rootPath">Destination folder of the plugin.</param>

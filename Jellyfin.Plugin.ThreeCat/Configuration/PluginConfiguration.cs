@@ -62,6 +62,27 @@ public class ThreeCatProgramReference
     public string? Anchors { get; set; }
 
     /// <summary>
+    /// Gets or sets the kind of program the user pins for this program («Anime», «Infantil»,
+    /// «Documentals»...), instead of the one the classifier resolves from the catalog of 3Cat.
+    /// </summary>
+    /// <remarks>
+    /// <c>null</c> or empty means «automatic», which is what the page saves by default. It only changes the
+    /// folder of the program: the genres of the series keep following the classification, so a library
+    /// filtered by genre and the folder never disagree about what the program is. «Movies» is not offered
+    /// by the page —the shape of the files is not a folder decision— and is ignored here too.
+    /// </remarks>
+    public string? CategoryOverride { get; set; }
+
+    /// <summary>
+    /// Gets or sets the kind of program the last run resolved (cache, filled in by the refresh task).
+    /// </summary>
+    /// <remarks>
+    /// It is what the configuration page shows in the «Clasificación» column: the classification is a
+    /// sweep of the facets of the 3Cat search endpoint, so the page cannot compute it on its own.
+    /// </remarks>
+    public string? Category { get; set; }
+
+    /// <summary>
     /// Gets or sets the folder of a second library the program is mirrored to, on top of the destination
     /// folder of the plugin (for instance the folder of an «Anime» or «Infantil» library).
     /// </summary>
@@ -104,6 +125,27 @@ public class ThreeCatProgramReference
 }
 
 /// <summary>
+/// A library of Jellyfin that also indexes the folder of a kind of program.
+/// </summary>
+/// <remarks>
+/// The library is named, not addressed by folder: the plugin owns <c>&lt;destination&gt;/&lt;kind&gt;</c>
+/// and the folder of the library is where that folder is added, so renaming the library keeps working and
+/// a library with several folders does not have to pick one.
+/// </remarks>
+public class ThreeCatKindLibrary
+{
+    /// <summary>
+    /// Gets or sets the kind of program, one of the folders of the layout («Anime», «Infantil»...).
+    /// </summary>
+    public string Category { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the name of the library of Jellyfin the folder is added to. Empty means none.
+    /// </summary>
+    public string Library { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Plugin configuration.
 /// </summary>
 public class PluginConfiguration : BasePluginConfiguration
@@ -119,10 +161,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// defaults keep the behaviour of version 2 —3Cat numbering and the plugin's own metadata— so the
     /// migration is only a version stamp. Version 4 adds <see cref="OrganizeByKind"/>, which is turned
     /// off when a configuration written by an older build is migrated: a plugin update must never move
-    /// the library of the user behind its back. The XML serializer ignores the elements of a
-    /// configuration written by an older build.
+    /// the library of the user behind its back. Version 5 adds <see cref="KindLibraries"/> (the library
+    /// of Jellyfin each kind of program is also indexed by) and the kind of program pinned per program;
+    /// both are empty in a migrated configuration, so nothing moves and the version is only a stamp. The
+    /// XML serializer ignores the elements of a configuration written by an older build.
     /// </remarks>
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     /// <summary>
     /// Version of the file naming scheme written by this build.
@@ -152,6 +196,7 @@ public class PluginConfiguration : BasePluginConfiguration
         SeparateAnime = true;
         SeparateChildren = true;
         OrganizeByKind = true;
+        KindLibraries = [];
         MetadataSource = MetadataSource.ThreeCat;
         OpenTvIdsUrl = OpenTvIdsClient.DefaultUrl;
         TmdbApiKey = string.Empty;
@@ -305,6 +350,24 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </para>
     /// </remarks>
     public bool OrganizeByKind { get; set; }
+
+    /// <summary>
+    /// Gets or sets the libraries of Jellyfin, by name, that also index the folder of a kind of program.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It is the curated half of the organised layout: the «3Cat» library indexes every folder of the
+    /// series, and the library of each kind («Anime», «Infantil», «Documentals»...) is pointed at the
+    /// folder of that kind so it shows its programs with its own settings. Jellyfin indexes a folder in
+    /// every library that points at it, so the programmes are not copied: one set of files, two libraries.
+    /// </para>
+    /// <para>
+    /// The folders are attached when the user asks for it from the page («Aplicar a las bibliotecas»),
+    /// never as a side effect of a refresh: adding an indexed folder to somebody's library is a decision
+    /// of the user, not of the task.
+    /// </para>
+    /// </remarks>
+    public List<ThreeCatKindLibrary> KindLibraries { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the programs are classified by the format 3Cat files

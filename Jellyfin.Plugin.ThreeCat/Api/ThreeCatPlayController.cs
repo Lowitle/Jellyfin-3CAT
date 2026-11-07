@@ -352,6 +352,87 @@ public sealed class ThreeCatPlayController : ControllerBase
     }
 
     /// <summary>
+    /// Lists the kinds of program the plugin writes, with the folder of each one.
+    /// </summary>
+    /// <returns>The kinds of program of the layout.</returns>
+    /// <remarks>
+    /// The page builds the «Clasificación» column and the table of sub-libraries from this list, so the
+    /// folders are named in one place —<see cref="LibraryCategory"/>— and the page never repeats them.
+    /// </remarks>
+    [HttpGet("Library/Categories")]
+    public ActionResult<IReadOnlyList<ThreeCatCategory>> ListCategories()
+        => Ok(LibraryCategory.All
+            .Select(category => new ThreeCatCategory(
+                category,
+                category,
+                category == LibraryCategory.Movies))
+            .ToList());
+
+    /// <summary>
+    /// Adds the folder of each kind of program to the library of Jellyfin the user chose for it.
+    /// </summary>
+    /// <returns>The result of the operation.</returns>
+    /// <remarks>
+    /// It is the manual half of <see cref="PluginConfiguration.KindLibraries"/>: the page saves the table
+    /// and then asks for it, because adding an indexed folder to a library is a decision of the user and
+    /// not something a refresh should do behind its back. Nothing is copied —Jellyfin indexes one folder
+    /// in every library that points at it—, so the programmes keep being written once.
+    /// </remarks>
+    [HttpPost("Library/Kinds")]
+    public ActionResult<ThreeCatKindLibraryStatus> ApplyKindLibraries()
+    {
+        var configuration = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        var destination = configuration.DestinationPath?.Trim() ?? string.Empty;
+
+        if (destination.Length == 0)
+        {
+            return Ok(new ThreeCatKindLibraryStatus(
+                false,
+                false,
+                "Escribe la carpeta de destino antes de aplicar las sub-bibliotecas."));
+        }
+
+        var messages = new List<string>();
+        var applied = 0;
+        var success = true;
+
+        foreach (var entry in configuration.KindLibraries ?? [])
+        {
+            var category = LibraryCategory.Normalize(entry.Category);
+            var library = entry.Library?.Trim() ?? string.Empty;
+
+            if (category is null || library.Length == 0)
+            {
+                continue;
+            }
+
+            var status = LibraryProvisioner.Attach(
+                _libraryManager,
+                library,
+                LibraryCategory.Folder(destination, category),
+                _logger,
+                _libraryMonitor);
+
+            success &= status.Success;
+            applied++;
+            messages.Add(status.Message);
+        }
+
+        if (applied == 0)
+        {
+            return Ok(new ThreeCatKindLibraryStatus(
+                false,
+                true,
+                "Elige la biblioteca de Jellyfin de al menos un tipo de programa."));
+        }
+
+        var message = string.Join(" ", messages);
+        _logger.LogInformation("3Cat: sub-bibliotecas → {Message}", message);
+
+        return Ok(new ThreeCatKindLibraryStatus(success, false, message));
+    }
+
+    /// <summary>
     /// Applies the configured refresh interval to the scheduled task.
     /// </summary>
     /// <returns>No content.</returns>
@@ -954,6 +1035,22 @@ public sealed record ThreeCatLibraryProvisionStatus(
     IReadOnlyList<string> LibraryNames,
     IReadOnlyList<string> LibraryPaths,
     string Message);
+
+/// <summary>
+/// A kind of program of the layout, as offered by the page.
+/// </summary>
+/// <param name="Category">Name of the kind («Anime», «Infantil»...), the value the configuration saves.</param>
+/// <param name="Folder">Folder of the destination folder the programs of that kind are written to.</param>
+/// <param name="Movies">Whether the programs of that kind are written as films instead of as series.</param>
+public sealed record ThreeCatCategory(string Category, string Folder, bool Movies);
+
+/// <summary>
+/// Result of the «apply the sub-libraries» request.
+/// </summary>
+/// <param name="Success">Whether every folder ended up in the library the user chose.</param>
+/// <param name="NothingToDo">Whether the table had no library to apply yet.</param>
+/// <param name="Message">Message shown to the user.</param>
+public sealed record ThreeCatKindLibraryStatus(bool Success, bool NothingToDo, string Message);
 
 /// <summary>
 /// State of the identity dataset, as shown by the configuration page.

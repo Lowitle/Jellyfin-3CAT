@@ -117,6 +117,46 @@ public sealed class LibraryCategoryTests
     }
 
     [Fact]
+    public void Resolve_KeepsTheKindTheUserPinned()
+    {
+        var classification = ProgramClassifier.Classify(["PUFF_SDIBU"], [], [], anime: true);
+
+        Assert.Equal("Documentals", LibraryCategory.Resolve(classification, "Documentals"));
+        Assert.Equal("Documentals", LibraryCategory.Resolve(classification, "  documentals "));
+
+        // The empty value is «automatic»: the classification is the one that decides.
+        Assert.Equal("Anime", LibraryCategory.Resolve(classification, string.Empty));
+        Assert.Equal("Anime", LibraryCategory.Resolve(classification, null));
+    }
+
+    [Fact]
+    public void Resolve_IgnoresAPinnedKindThatIsNotAFolderOfSeries()
+    {
+        var classification = ProgramClassifier.Classify(["PUF_PDO"], [], []);
+
+        // «Movies» is not a folder decision: it changes the shape of the files, and a program the catalog
+        // files as a documentary stays a documentary.
+        Assert.Equal("Documentals", LibraryCategory.Resolve(classification, "Movies"));
+
+        // A value the page never offers —a folder that was renamed— is not invented either.
+        Assert.Equal("Documentals", LibraryCategory.Resolve(classification, "Peliculas"));
+    }
+
+    [Fact]
+    public void Normalize_ReturnsTheFolderOfTheLayout()
+    {
+        Assert.Equal("Programes TV", LibraryCategory.Normalize("programes tv"));
+        Assert.Equal("Infantil", LibraryCategory.Normalize("  INFANTIL "));
+        Assert.Null(LibraryCategory.Normalize(string.Empty));
+        Assert.Null(LibraryCategory.Normalize("Peliculas"));
+
+        Assert.True(LibraryCategory.IsSeriesCategory("Anime"));
+        Assert.True(LibraryCategory.IsSeriesCategory("programes tv"));
+        Assert.False(LibraryCategory.IsSeriesCategory("Movies"));
+        Assert.False(LibraryCategory.IsSeriesCategory(null));
+    }
+
+    [Fact]
     public void IsAncestor_TellsTheDestinationFolderFromTheFoldersOfTheLayout()
     {
         var root = Path.Combine(Path.GetTempPath(), "threecat-layout");

@@ -202,9 +202,44 @@
                 width: 9em;
             }
 
-            #ThreeCatConfigPage table.threeCatTable .threeCatCellLibrary .threeCatSelect {
-                width: 100%;
+            /* The library selector of a kind of program: the table is wide and the name of a library
+               is short, so the control does not have to fill the cell. */
+            #ThreeCatConfigPage #ThreeCatKindsBody .threeCatSelect {
                 max-width: 26em;
+            }
+
+            /* The build the server is running, next to the title: it is the first thing to look at when a
+               change does not show up, because a cached page hides which version is really installed. */
+            #ThreeCatConfigPage .threeCatVersion {
+                font-size: 0.78em;
+                font-weight: 400;
+                opacity: 0.7;
+                margin-left: 0.6em;
+                text-transform: none;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable .threeCatCellProgram .threeCatReference {
+                display: block;
+                font-size: 0.82em;
+                opacity: 0.7;
+                margin-top: 0.15em;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable .threeCatCellProgramKind .threeCatSelect {
+                width: 100%;
+                max-width: 16em;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable .threeCatMirrorNote {
+                font-size: 0.8em;
+                opacity: 0.7;
+                margin-top: 0.3em;
+            }
+
+            #ThreeCatConfigPage table.threeCatTable .threeCatMirrorClear {
+                font-size: 0.78em;
+                padding: 0 0.4em;
+                min-width: 0;
             }
 
             #ThreeCatConfigPage table.threeCatTable .threeCatCellDate {
@@ -235,7 +270,7 @@
             <form id="ThreeCatConfigForm">
 
                 <div class="verticalSection">
-                    <h2 class="sectionTitle">3Cat</h2>
+                    <h2 class="sectionTitle">3Cat <span class="threeCatVersion" id="ThreeCatVersion"></span></h2>
                     <p class="fieldDescription">
                         Genera una biblioteca de series a partir del catálogo a la carta de 3Cat: cada programa
                         configurado se convierte en una serie con un archivo <code>.strm</code> por episodio, su
@@ -271,13 +306,10 @@
                         <table class="threeCatTable">
                             <thead>
                                 <tr>
-                                    <th style="width: 22%">Programa</th>
-                                    <th style="width: 11%">Referencia</th>
-                                    <th style="width: 13%">Fuente</th>
-                                    <th style="width: 10%">id TMDB</th>
-                                    <th style="width: 18%">Anclas</th>
-                                    <th style="width: 20%">También en</th>
-                                    <th style="width: 6%"></th>
+                                    <th style="width: 46%">Programa</th>
+                                    <th style="width: 16%">Fuente metadatos</th>
+                                    <th style="width: 28%">Clasificación</th>
+                                    <th style="width: 10%"></th>
                                 </tr>
                             </thead>
                             <tbody id="ThreeCatProgramsBody"></tbody>
@@ -290,14 +322,13 @@
 
                     <div class="fieldDescription">
                         Todos los programas se escriben en la carpeta de destino del plugin, que es la
-                        biblioteca «3Cat». La columna «También en» guarda además una copia de la serie en la
-                        carpeta de otra biblioteca de Jellyfin —«Anime», «Infantil», «Programas de TV»…— para
-                        que esa biblioteca la muestre con sus propias etiquetas. La copia son los mismos
-                        ficheros ligeros (<code>.strm</code>, <code>.nfo</code>, subtítulos e imágenes), así
-                        que la serie aparece dos veces en el servidor y cada biblioteca lleva su propio
-                        «visto»: quitarla de la columna borra solo la copia. Si en la carpeta elegida ya hay
-                        una serie con el mismo nombre, el plugin escribe encima sus archivos de metadatos y
-                        episodios.
+                        biblioteca «3Cat», dentro de la subcarpeta de su tipo. La columna «Clasificación» muestra
+                        el tipo que el plugin lee del catálogo de 3Cat —«Anime», «Infantil», «Documentals»,
+                        «Series» o «Programes TV»— y permite fijarlo a mano cuando la ficha de 3Cat no lo dice
+                        bien: la carpeta, y por tanto la biblioteca curada que la indexe, sigue la elección,
+                        mientras que los géneros de la serie siguen saliendo del catálogo. El id de TMDB y las
+                        anclas del emparejamiento se detectan solos con el dataset de identificadores: solo se
+                        escriben en el <code>tvshow.nfo</code> cuando el programa se numera con TMDB.
                     </div>
 
                     <div id="ThreeCatCatalog"></div>
@@ -349,6 +380,38 @@
                         existe una biblioteca llamada «3Cat», se le añaden las carpetas en lugar de crear otra, y
                         la carpeta de destino que indexaba antes se sustituye por sus subcarpetas.
                     </div>
+
+                    <h3 class="sectionTitle">Sub-bibliotecas por tipo</h3>
+                    <div class="fieldDescription">
+                        Cada tipo de programa tiene su carpeta dentro de la carpeta de destino. Elige aquí la
+                        biblioteca de Jellyfin que debe indexar además esa carpeta —«Anime» en «Anime»,
+                        «Infantil» en «Infantil», «Documentals» en «Documentales»…— para que cada una tenga sus
+                        propias etiquetas, su orden y su «visto». No se copia ningún archivo: Jellyfin indexa la
+                        misma carpeta en todas las bibliotecas que apuntan a ella, así que el programa sigue
+                        estando en «3Cat» y aparece también en la curada sin duplicarse. La biblioteca tiene que
+                        existir ya; si no, créala desde el panel de bibliotecas y vuelve a esta página.
+                    </div>
+
+                    <div class="threeCatTableWrap">
+                        <table class="threeCatTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 22%">Tipo</th>
+                                    <th style="width: 40%">Carpeta</th>
+                                    <th style="width: 38%">Biblioteca de Jellyfin</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ThreeCatKindsBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="threeCatActions">
+                        <button is="emby-button" type="button" id="ThreeCatApplyKinds" class="raised">
+                            <span>Aplicar a las bibliotecas</span>
+                        </button>
+                    </div>
+
+                    <div class="fieldDescription" id="ThreeCatKindsStatus"></div>
                 </div>
 
                 <div class="verticalSection">
@@ -647,11 +710,39 @@
                     pager: null,
                     body: null
                 },
-                // Libraries of the server, read from «ThreeCat/Libraries»: the page offers their folders as
-                // the destination of a program, so a program can live in the «Anime» or «Infantil» library
-                // instead of the folder of the plugin.
-                libraries: []
+                // Libraries of the server, read from «ThreeCat/Libraries»: the page offers their names as the
+                // sub-library of a kind of program, so one folder is indexed by «3Cat» and by the curated
+                // library at once, without copying a single file.
+                libraries: [],
+                // Kind of program → library of Jellyfin that also indexes its folder, as saved.
+                kindLibraries: [],
+                // Kinds of program of the server, read from «ThreeCat/Library/Categories»: the page never
+                // repeats the folders of the layout.
+                categories: []
             };
+
+            // The build the server is running. A page cached by the browser keeps showing the old layout
+            // after a plugin update, and the version is what tells the two apart.
+            function threeCatLoadVersion() {
+                var label = document.querySelector('#ThreeCatVersion');
+
+                if (!label) {
+                    return;
+                }
+
+                ApiClient.getJSON(ApiClient.getUrl('Plugins')).then(function (plugins) {
+                    var plugin = (plugins || []).filter(function (candidate) {
+                        return String(threeCatField(candidate, 'id') || '').toLowerCase()
+                            === ThreeCatConfig.pluginId;
+                    })[0];
+
+                    var version = plugin ? threeCatField(plugin, 'version') : '';
+
+                    label.textContent = version ? 'versión ' + version : '';
+                }, function () {
+                    label.textContent = '';
+                });
+            }
 
             function threeCatStatus(message) {
                 document.querySelector('#ThreeCatStatus').textContent = message || '';
@@ -1172,56 +1263,87 @@
                 return typeof value === 'string' ? value.trim() : '';
             }
 
-            // The folders a program can be mirrored to: the folders of the libraries of the server, plus
-            // the empty value (no copy). A library with several folders offers one option per folder,
-            // because the folder —not the library— is what the task writes into.
-            function threeCatLibraryOptions(current) {
-                var options = [];
-                var seen = { '': true };
+            // The libraries of the server a folder can be added to: by name, because it is the name what the
+            // endpoint that attaches the folder takes. A library of films is only offered to the kind of
+            // program written as films, so a «Películas» library never indexes a folder of series.
+            function threeCatLibraryNames(movies) {
+                var names = [];
 
                 ThreeCatConfig.libraries.forEach(function (library) {
-                    var locations = threeCatField(library, 'locations') || [];
                     var name = threeCatClean(threeCatField(library, 'name'));
+                    var type = String(threeCatField(library, 'collectionType') || '').toLowerCase();
 
-                    locations.forEach(function (location) {
-                        var value = threeCatPath(location);
-                        if (value.length === 0 || seen[value]) {
+                    if (name.length === 0 || names.indexOf(name) !== -1) {
+                        return;
+                    }
+
+                    if (type.length > 0 && type !== 'mixed') {
+                        if (movies ? type !== 'movies' : type === 'movies') {
                             return;
                         }
+                    }
 
-                        seen[value] = true;
-                        options.push({ value: value, label: name + ' — ' + value });
-                    });
+                    names.push(name);
                 });
 
-                // A folder of a library that was renamed or removed, or a library the server did not
-                // return, stays selectable: saving the page must not move the program back silently.
-                if (current && !seen[current]) {
-                    options.push({ value: current, label: current + ' (no encontrada)' });
-                }
-
-                return options;
+                return names.sort(function (left, right) {
+                    return left.localeCompare(right, 'ca', { sensitivity: 'base' });
+                });
             }
 
-            // The cell of the «También en» column: the folder of a second library the program is copied
-            // to, on top of the destination folder of the plugin (the empty value).
-            function threeCatProgramLibraryCell(program) {
-                var cell = threeCatElement('td', 'threeCatCellLibrary');
-                var current = threeCatPath(program.DestinationPath);
+            // The cell of the «Clasificación» column: the kind of program the last run resolved and, when the
+            // user pins another one, the choice that replaces it. The empty value is «automatic», which is
+            // what the classifier resolved from the catalog of 3Cat; the catalog is not read from the page,
+            // so the label shows the kind of the last run.
+            function threeCatProgramKindCell(program) {
+                var cell = threeCatElement('td', 'threeCatCellProgramKind');
+
+                var options = ThreeCatConfig.categories
+                    .filter(function (category) {
+                        return category.Movies !== true;
+                    })
+                    .map(function (category) {
+                        return { value: category.Category, label: category.Category };
+                    });
+
+                var automatic = program.Category
+                    ? 'Automático (' + program.Category + ')'
+                    : 'Automático';
 
                 var select = threeCatFilterSelect(
-                    'ThreeCatProgramLibrary-' + program.Id,
-                    current,
-                    threeCatLibraryOptions(current),
-                    'Sin copia',
+                    'ThreeCatProgramKind-' + program.Id,
+                    program.CategoryOverride || '',
+                    options,
+                    automatic,
                     function (value) {
-                        program.DestinationPath = value;
-                        threeCatStatus('Copia de «' + (program.Title || program.Id)
+                        program.CategoryOverride = value;
+                        threeCatStatus('Clasificación de «' + (program.Title || program.Id)
                             + '» cambiada. Pulsa «Guardar» para aplicarla.');
                     });
 
-                select.title = current || 'Sin copia';
+                select.title = program.CategoryOverride
+                    ? 'Fijada a mano: la carpeta del programa sigue esta clasificación.'
+                    : 'Automática: el tipo que el plugin lee del catálogo de 3Cat.';
+
                 cell.appendChild(select);
+
+                // A copy configured by an older build is not lost —the task keeps writing it—, but it is no
+                // longer a column: it is shown here, with the way to remove it.
+                if (program.DestinationPath) {
+                    var note = threeCatElement('div', 'threeCatMirrorNote',
+                        'Copia aparte en ' + program.DestinationPath + ' ');
+                    var clear = threeCatElement('button', 'emby-button raised threeCatMirrorClear', 'Quitar copia');
+                    clear.type = 'button';
+                    clear.addEventListener('click', function () {
+                        program.DestinationPath = '';
+                        threeCatRenderPrograms();
+                        threeCatStatus('Copia de «' + (program.Title || program.Id)
+                            + '» quitada. Pulsa «Guardar»: la próxima actualización borra los archivos copiados.');
+                    });
+                    note.appendChild(clear);
+                    cell.appendChild(note);
+                }
+
                 return cell;
             }
 
@@ -1258,47 +1380,107 @@
                 return cell;
             }
 
-            // The manual TMDB id: it wins over the dataset and it is how a wrong or missing id is fixed.
-            function threeCatProgramIdCell(program) {
-                var cell = threeCatElement('td', 'threeCatCellId');
-                var input = threeCatElement('input', 'emby-input threeCatIdInput');
-                input.type = 'text';
-                input.id = 'ThreeCatProgramTmdb-' + program.Id;
-                input.placeholder = 'id TMDB';
-                input.value = program.TmdbId || '';
-                input.addEventListener('input', function () {
-                    program.TmdbId = this.value.trim();
-                });
-                // The table lives inside the configuration form: Enter in the box would save the page.
-                input.addEventListener('keydown', function (event) {
-                    if (event.key === 'Enter') {
-                        event.preventDefault();
-                    }
-                });
-                cell.appendChild(input);
-                return cell;
+            function threeCatKindEntry(category, create) {
+                var entry = ThreeCatConfig.kindLibraries.filter(function (candidate) {
+                    return candidate.Category === category;
+                })[0];
+
+                if (!entry && create === true) {
+                    // The row is only kept when the user chooses a library: a page that is opened and saved
+                    // must not fill the configuration with empty rows.
+                    entry = { Category: category, Library: '' };
+                    ThreeCatConfig.kindLibraries.push(entry);
+                }
+
+                return entry;
             }
 
-            // The anchors of the mapping: they are what ties a dub to the original when neither the titles nor the
-            // dates do, so they live next to the id they belong to.
-            function threeCatProgramAnchorsCell(program) {
-                var cell = threeCatElement('td', 'threeCatCellId');
-                var input = threeCatElement('input', 'emby-input threeCatIdInput');
-                input.type = 'text';
-                input.id = 'ThreeCatProgramAnchors-' + program.Id;
-                input.placeholder = 'T1=1; T20=856';
-                input.title = 'T1=1: la temporada 1 de 3Cat empieza en el episodio 1 de TMDB.';
-                input.value = program.Anchors || '';
-                input.addEventListener('input', function () {
-                    program.Anchors = this.value.trim();
+            // The folder of a kind under the destination folder, shown as information: the server joins the
+            // two with the separator of its own file system, and the page only has to be readable.
+            function threeCatKindFolder(destination, folder) {
+                var base = String(destination || '').replace(/[\\/]+$/, '');
+
+                if (base.length === 0) {
+                    return '';
+                }
+
+                var separator = base.indexOf('\\') !== -1 && base.indexOf('/') === -1 ? '\\' : '/';
+
+                return base + separator + folder;
+            }
+
+            function threeCatKindsStatus(message) {
+                var status = document.querySelector('#ThreeCatKindsStatus');
+
+                if (status) {
+                    status.textContent = message || '';
+                }
+            }
+
+            // The table of sub-libraries: one row per kind of program and the library of Jellyfin that also
+            // indexes its folder. The table is a wish until «Aplicar a las bibliotecas» is pressed, because
+            // adding an indexed folder to a library of the user is not a side effect of saving the page.
+            function threeCatRenderKinds() {
+                var body = document.querySelector('#ThreeCatKindsBody');
+
+                if (!body) {
+                    return;
+                }
+
+                var destination = document.querySelector('#ThreeCatDestinationPath').value.trim();
+
+                body.innerHTML = '';
+
+                ThreeCatConfig.categories.forEach(function (category) {
+                    var row = document.createElement('tr');
+                    var entry = threeCatKindEntry(category.Category, false);
+                    var folder = threeCatKindFolder(destination, category.Folder);
+
+                    row.appendChild(threeCatElement('td', '', category.Category));
+
+                    var folderCell = threeCatElement('td', 'threeCatMono', folder || '—');
+                    folderCell.title = folder || 'Escribe la carpeta de destino para ver la subcarpeta.';
+                    row.appendChild(folderCell);
+
+                    var options = threeCatLibraryNames(category.Movies === true).map(function (name) {
+                        return { value: name, label: name };
+                    });
+
+                    var cell = threeCatElement('td');
+                    cell.appendChild(threeCatFilterSelect(
+                        'ThreeCatKindLibrary-' + category.Category,
+                        entry && entry.Library ? entry.Library : '',
+                        options,
+                        '(ninguna)',
+                        function (value) {
+                            threeCatKindEntry(category.Category, true).Library = value;
+                            threeCatKindsStatus('Sub-biblioteca de «' + category.Category
+                                + '» cambiada. Pulsa «Aplicar a las bibliotecas» para añadir la carpeta.');
+                        }));
+
+                    row.appendChild(cell);
+                    body.appendChild(row);
                 });
-                input.addEventListener('keydown', function (event) {
-                    if (event.key === 'Enter') {
-                        event.preventDefault();
-                    }
+            }
+
+            // Saves the table first and then asks the server to attach the folders: the endpoint reads the
+            // stored configuration, so an unsaved choice would be applied as the previous one.
+            function threeCatApplyKinds() {
+                Dashboard.showLoadingMsg();
+
+                threeCatSave().then(function () {
+                    return ApiClient.ajax({
+                        type: 'POST',
+                        url: threeCatUrl('Library/Kinds'),
+                        dataType: 'json'
+                    });
+                }).then(function (result) {
+                    Dashboard.hideLoadingMsg();
+                    threeCatKindsStatus(threeCatField(result, 'message') || 'Sub-bibliotecas aplicadas.');
+                }, function (reason) {
+                    Dashboard.hideLoadingMsg();
+                    threeCatKindsStatus(threeCatErrorMessage(reason, 'No se pudieron aplicar las sub-bibliotecas.'));
                 });
-                cell.appendChild(input);
-                return cell;
             }
 
             function threeCatRenderPrograms() {
@@ -1311,16 +1493,15 @@
                 programs.forEach(function (program, index) {
                     var row = document.createElement('tr');
 
-                    row.appendChild(threeCatElement('td', '', program.Title || '(sin título)'));
-
-                    var reference = threeCatElement('td');
-                    reference.appendChild(threeCatElement('span', 'threeCatMono', program.Id));
-                    row.appendChild(reference);
+                    // The title and the reference share a cell: the programatv_id is the value the user copies
+                    // and the title is what the folder is named after, so the reference goes under it, small.
+                    var name = threeCatElement('td', 'threeCatCellProgram');
+                    name.appendChild(threeCatElement('div', '', program.Title || '(sin título)'));
+                    name.appendChild(threeCatElement('div', 'threeCatMono threeCatReference', program.Id));
+                    row.appendChild(name);
 
                     row.appendChild(threeCatProgramSourceCell(program));
-                    row.appendChild(threeCatProgramIdCell(program));
-                    row.appendChild(threeCatProgramAnchorsCell(program));
-                    row.appendChild(threeCatProgramLibraryCell(program));
+                    row.appendChild(threeCatProgramKindCell(program));
 
                     var actions = threeCatElement('td');
                     // A button created after the page was upgraded is not turned into an <emby-button>:
@@ -1363,6 +1544,8 @@
                     TmdbId: '',
                     TvdbId: '',
                     Anchors: '',
+                    Category: '',
+                    CategoryOverride: '',
                     WrittenSource: null,
                     DestinationPath: '',
                     WrittenPath: '',
@@ -2179,12 +2362,35 @@
                 });
             }
 
+            // The kinds of program of the layout, named by the server: the «Clasificación» column and the
+            // table of sub-libraries are built from this list, so a kind is never spelled twice.
+            function threeCatLoadCategories() {
+                return ApiClient.getJSON(threeCatUrl('Library/Categories')).then(function (result) {
+                    ThreeCatConfig.categories = (Array.isArray(result) ? result : [])
+                        .map(function (category) {
+                            return {
+                                Category: threeCatField(category, 'category') || '',
+                                Folder: threeCatField(category, 'folder') || '',
+                                Movies: threeCatField(category, 'movies') === true
+                            };
+                        })
+                        .filter(function (category) {
+                            return category.Category.length > 0;
+                        });
+                }, function () {
+                    ThreeCatConfig.categories = [];
+                });
+            }
+
             function threeCatLoad() {
                 Dashboard.showLoadingMsg();
 
-                // The libraries are read first: the table of programs offers their folders, so the first
-                // render already has them.
+                // The libraries are read first: the table of sub-libraries offers their names, so the first
+                // render already has them. The kinds of program come from the server too, so the folders of
+                // the layout are named in one place.
                 threeCatLoadLibraries().then(function () {
+                    return threeCatLoadCategories();
+                }).then(function () {
                     return ApiClient.getPluginConfiguration(ThreeCatConfig.pluginId);
                 }).then(function (config) {
                     var programs = threeCatField(config, 'programs') || [];
@@ -2199,6 +2405,10 @@
                             TmdbId: threeCatField(program, 'tmdbId') || '',
                             TvdbId: threeCatField(program, 'tvdbId') || '',
                             Anchors: threeCatField(program, 'anchors') || '',
+                            // The kind the last run resolved, and the one the user pinned for this program:
+                            // both are carried through so saving the page never drops them.
+                            Category: threeCatField(program, 'category') || '',
+                            CategoryOverride: threeCatField(program, 'categoryOverride') || '',
                             // The source the last run wrote is a cache of the task: it is carried through so
                             // saving the page never makes the next run rewrite a series for nothing.
                             WrittenSource: threeCatSourceValue(threeCatField(program, 'writtenSource')),
@@ -2209,6 +2419,17 @@
                             WrittenMirror: threeCatPath(threeCatField(program, 'writtenMirror'))
                         };
                     });
+
+                    ThreeCatConfig.kindLibraries = (threeCatField(config, 'kindLibraries') || [])
+                        .map(function (entry) {
+                            return {
+                                Category: threeCatField(entry, 'category') || '',
+                                Library: threeCatField(entry, 'library') || ''
+                            };
+                        })
+                        .filter(function (entry) {
+                            return entry.Category.length > 0;
+                        });
 
                     document.querySelector('#ThreeCatDestinationPath').value =
                         threeCatField(config, 'destinationPath') || '';
@@ -2241,6 +2462,7 @@
                     document.querySelector('#ThreeCatDeleteObsolete').checked =
                         threeCatField(config, 'deleteObsolete') === true;
 
+                    threeCatRenderKinds();
                     threeCatRenderPrograms();
                     threeCatLoadDataset(false);
                     threeCatStatus('');
@@ -2266,6 +2488,8 @@
                             TmdbId: program.TmdbId || null,
                             TvdbId: program.TvdbId || null,
                             Anchors: program.Anchors || null,
+                            Category: program.Category || null,
+                            CategoryOverride: program.CategoryOverride || null,
                             WrittenSource: program.WrittenSource,
                             DestinationPath: threeCatPath(program.DestinationPath),
                             WrittenPath: threeCatPath(program.WrittenPath),
@@ -2288,6 +2512,12 @@
                     config.SeparateAnime = document.querySelector('#ThreeCatSeparateAnime').checked;
                     config.SeparateChildren = document.querySelector('#ThreeCatSeparateChildren').checked;
                     config.OrganizeByKind = document.querySelector('#ThreeCatOrganizeByKind').checked;
+                    config.KindLibraries = ThreeCatConfig.kindLibraries.map(function (entry) {
+                        return {
+                            Category: entry.Category,
+                            Library: entry.Library || ''
+                        };
+                    });
                     config.PruneExpired = document.querySelector('#ThreeCatPruneExpired').checked;
                     config.DeleteObsolete = document.querySelector('#ThreeCatDeleteObsolete').checked;
 
@@ -2341,6 +2571,11 @@
 
                 document.querySelector('#ThreeCatCheckPath').addEventListener('click', threeCatCheckPath);
                 document.querySelector('#ThreeCatCreateLibrary').addEventListener('click', threeCatCreateLibrary);
+                document.querySelector('#ThreeCatApplyKinds').addEventListener('click', threeCatApplyKinds);
+
+                // The folder of each kind is only information, but it is what the table shows: it is redrawn
+                // while the destination folder is typed.
+                document.querySelector('#ThreeCatDestinationPath').addEventListener('input', threeCatRenderKinds);
                 document.querySelector('#ThreeCatRunNow').addEventListener('click', threeCatRunNow);
                 document.querySelector('#ThreeCatListPrograms').addEventListener('click', threeCatLoadAllPrograms);
 
@@ -2383,6 +2618,7 @@
 
             function threeCatInit() {
                 threeCatBind();
+                threeCatLoadVersion();
                 threeCatLoad();
             }
 

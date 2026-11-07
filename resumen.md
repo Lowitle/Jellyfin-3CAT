@@ -74,17 +74,29 @@ Nombre `Jellyfin.Plugin.ThreeCat`. Licencia **GPLv3** (obligada por enlazar con 
 - Script portable: `C:\localapps\3cat-dl.ps1`
 - Implementación de producción: `Z:\projectes\Doraemon\pipeline\trescat.py`
 
-## Estado de la 1.5.0.0
+## Estado de la 1.10.0.0
 
 Detalle y decisiones en `ROADMAP.md`:
 
-1. **Hecho.** Numeración por el título (`S22E06`), sin el prefijo `T22xC6 - ` en el título del
-   episodio, especiales en `Season 0` con la fecha delante y duplicados descartados
-   (`Sync/EpisodeNumbering.cs`, tests en `EpisodeNumberingTests.cs`). Migración automática vía
-   `PluginConfiguration.NamingVersion`: la primera ejecución reescribe las carpetas con el esquema
-   viejo.
-2. **Hecho.** Desplegable de «Biblioteca» legible (fondo explícito en `.threeCatSelect` y sus
-   `option`).
-3. **Hecho.** La serie se escribe siempre en la carpeta del plugin y la columna «También en» guarda
-   una copia de los ficheros ligeros en otra biblioteca de Jellyfin (`CopyArtwork`, `WrittenMirror`).
-4. **Pendiente de decidir.** Importación de películas (`PUFF_FILM`).
+1. **Hecho.** La tabla de programas enseña lo que el usuario decide: título y referencia en la misma
+   celda, «Fuente de metadatos» por programa y «Clasificación» en lugar de las columnas del id de TMDB,
+   de las anclas y de «También en». El id y las anclas se resuelven con el dataset de identificadores y
+   se revisan en la vista previa de la numeración; nada se pierde, porque `TmdbId`, `Anchors` y
+   `DestinationPath` siguen guardándose y la página los reescribe tal cual (`ConfigPageTests`).
+2. **Hecho.** La clasificación se fija por programa: `ThreeCatProgramReference.CategoryOverride` gana a
+   la que resuelve el catálogo (`LibraryCategory.Resolve(classification, pinned)`) y la carpeta cambia
+   sin tocar los géneros. «Movies» no se puede fijar porque no es una carpeta sino la forma de los
+   archivos (`LibraryCategoryTests`).
+3. **Hecho.** Sub-bibliotecas por tipo: `PluginConfiguration.KindLibraries` guarda pares tipo →
+   biblioteca y «Aplicar a las bibliotecas» los añade con `LibraryProvisioner.Attach` (idempotente,
+   sin copiar archivos: Jellyfin indexa la misma carpeta en todas las bibliotecas que la apuntan). El
+   alta es manual y nunca un efecto secundario de una actualización. La copia espejo por programa de
+   1.5.0.0 se conserva para las configuraciones que ya la tenían y la página ofrece quitarla.
+4. **Hecho.** La versión del plugin se muestra junto al título de la página: es lo que distingue una
+   página cacheada por el navegador de una actualización que no se ha cargado.
+
+Histórico de la 1.5.0.0: numeración por el título (`S22E06`), sin el prefijo `T22xC6 - ` en el título
+del episodio, especiales en `Season 0` con la fecha delante y duplicados descartados
+(`Sync/EpisodeNumbering.cs`, tests en `EpisodeNumberingTests.cs`), con migración automática vía
+`PluginConfiguration.NamingVersion`; desplegable de «Biblioteca» legible (fondo explícito en
+`.threeCatSelect` y sus `option`); películas importadas como películas (`PUFF_FILM`).
