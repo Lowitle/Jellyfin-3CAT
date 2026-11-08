@@ -64,7 +64,25 @@ public sealed partial class ThreeCatSyncService
         }
 
         var usable = page.Items.Where(video => !string.IsNullOrWhiteSpace(video.Id)).ToList();
-        var seriesTitle = ResolveSeriesTitle(usable, reference, programId);
+
+        // 3Cat publishes the program it publishes whole as a program of its own, with the name of the show and
+        // the shape of the video in the same title («Crackòvia - Programa sencer»). The series of the library
+        // is the show, so the format is dropped from the name —and from the folder— when the user asks for it.
+        var catalogTitle = ResolveSeriesTitle(usable, reference, programId);
+        var seriesTitle = SeriesName(
+            configuration.Programs,
+            reference,
+            catalogTitle,
+            configuration.TrimWholeProgramSuffix);
+
+        if (!string.Equals(seriesTitle, catalogTitle, StringComparison.Ordinal))
+        {
+            _logger.LogInformation(
+                "3Cat: «{Catalog}» se escribe como «{Series}»: el formato de programa completo no forma parte "
+                + "del nombre de la serie",
+                catalogTitle,
+                seriesTitle);
+        }
 
         // The kind of program decides where it is written and, for a film, the shape of every file, so it
         // is resolved before touching the disk. The classification is a sweep of the facets of the search
@@ -100,6 +118,12 @@ public sealed partial class ThreeCatSyncService
         // its kind —also when no run recorded the old folder next to the program.
         var flatPath = FlatSeriesFolder(destination, organized, seriesTitle);
         var flatMirrorPath = FlatSeriesFolder(mirrorRoot, organized, seriesTitle);
+
+        // The folder the title of the catalog gives: a run that removes the whole-program format from the name
+        // writes the series somewhere else, so the folder of the old name is cleaned like any other folder the
+        // program leaves behind —otherwise the library would show the same show twice.
+        var renamedPath = RenamedSeriesFolder(root, catalogTitle, seriesTitle);
+        var renamedMirrorPath = RenamedSeriesFolder(mirrorRoot, catalogTitle, seriesTitle);
 
         // 1.5.0.0 renames every episode file, so a folder written by an older build holds the same
         // episodes under the old names. It is deleted before writing it again — only when it is a
@@ -323,8 +347,8 @@ public sealed partial class ThreeCatSyncService
         // The source is recorded next to the folder, so the next run knows whether the numbering of the
         // files still matches the configuration.
         reference.WrittenSource = numbering.Source;
-        RemoveMovedSeries(reference, programId, result.SeriesPath, flatPath);
-        RemoveMovedMirror(reference, programId, mirrorRoot is null ? null : mirror.SeriesPath, flatMirrorPath);
+        RemoveMovedSeries(reference, programId, result.SeriesPath, flatPath, renamedPath);
+        RemoveMovedMirror(reference, programId, mirrorRoot is null ? null : mirror.SeriesPath, flatMirrorPath, renamedMirrorPath);
 
         _libraryMonitor.ReportFileSystemChanged(result.SeriesPath);
 
@@ -454,20 +478,27 @@ public sealed partial class ThreeCatSyncService
     /// <param name="flatPath">
     /// Folder the flat layout wrote the series to, or <c>null</c> when the layout of the kinds is off.
     /// </param>
+    /// <param name="renamedPath">
+    /// Folder the title of the catalog gives the series, or <c>null</c> when the name did not change.
+    /// </param>
     /// <remarks>
     /// The old folder is only removed when it holds nothing but files of this plugin and its
     /// <c>tvshow.nfo</c> names this program, so a folder the user filled with something else is kept. The
-    /// new path is always recorded, so a removal that fails is retried on the next run.
+    /// new path is always recorded, so a removal that fails is retried on the next run. The folder of the
+    /// old name is cleaned too, because a run that removes the whole-program format from the title writes
+    /// the series somewhere else and the library would otherwise show the show twice.
     /// </remarks>
     private void RemoveMovedSeries(
         ThreeCatProgramReference reference,
         string programId,
         string seriesPath,
-        string? flatPath)
+        string? flatPath,
+        string? renamedPath = null)
     {
         var previous = RecordedFolder(reference.WrittenPath, flatPath, seriesPath);
         reference.WrittenPath = seriesPath;
         RemoveMovedFolder(previous, seriesPath, programId, "biblioteca del plugin");
+        RemoveRenamedFolder(renamedPath, previous, seriesPath, programId, "biblioteca del plugin");
     }
 
     /// <summary>
@@ -482,15 +513,46 @@ public sealed partial class ThreeCatSyncService
     /// Folder the flat layout wrote the series to inside the mirror, or <c>null</c> when there is no mirror
     /// or the layout of the kinds is off.
     /// </param>
+    /// <param name="renamedPath">
+    /// Folder the title of the catalog gives the series inside the mirror, or <c>null</c> when the name did
+    /// not change.
+    /// </param>
     private void RemoveMovedMirror(
         ThreeCatProgramReference reference,
         string programId,
         string? seriesPath,
-        string? flatPath)
+        string? flatPath,
+        string? renamedPath = null)
     {
         var previous = RecordedFolder(reference.WrittenMirror, flatPath, seriesPath);
         reference.WrittenMirror = seriesPath ?? string.Empty;
         RemoveMovedFolder(previous, seriesPath, programId, "biblioteca espejo");
+        RemoveRenamedFolder(renamedPath, previous, seriesPath, programId, "biblioteca espejo");
+    }
+
+    /// <summary>
+    /// Removes the folder the series had under the name of the catalog, when the run wrote it somewhere else.
+    /// </summary>
+    /// <param name="renamedPath">Folder of the old name, or <c>null</c> when the title did not change.</param>
+    /// <param name="previous">Folder already cleaned by the caller, so it is not cleaned twice.</param>
+    /// <param name="current">Folder of this run, or <c>null</c> when it is not written anymore.</param>
+    /// <param name="programId">3Cat program id, used to make sure the old folder is the one of this program.</param>
+    /// <param name="library">Which library the folder belongs to, for the log.</param>
+    private void RemoveRenamedFolder(
+        string? renamedPath,
+        string? previous,
+        string? current,
+        string programId,
+        string library)
+    {
+        if (string.IsNullOrEmpty(renamedPath)
+            || LibraryPath.SamePath(renamedPath, previous)
+            || (current is not null && LibraryPath.SamePath(renamedPath, current)))
+        {
+            return;
+        }
+
+        RemoveMovedFolder(renamedPath, current, programId, library);
     }
 
     /// <summary>
@@ -531,6 +593,24 @@ public sealed partial class ThreeCatSyncService
             : null;
 
     /// <summary>
+    /// Builds the folder the title of the catalog gives a series, which is where the runs before the
+    /// whole-program format was removed from the name wrote it.
+    /// </summary>
+    /// <param name="rootPath">Destination folder or mirror root.</param>
+    /// <param name="catalogTitle">Title of the program as 3Cat publishes it.</param>
+    /// <param name="seriesTitle">Name of the series of this run.</param>
+    /// <returns>The folder of the old name, or <c>null</c> when the name did not change.</returns>
+    /// <remarks>
+    /// The folder is only a candidate: the series is never written to it, and it is cleaned like any other
+    /// folder a program leaves behind —only when it holds nothing but files of this plugin and its
+    /// <c>tvshow.nfo</c> names the program.
+    /// </remarks>
+    internal static string? RenamedSeriesFolder(string? rootPath, string catalogTitle, string seriesTitle)
+        => !string.IsNullOrWhiteSpace(rootPath) && !string.Equals(catalogTitle, seriesTitle, StringComparison.Ordinal)
+            ? StrmLibrary.SeriesFolder(rootPath, catalogTitle)
+            : null;
+
+    /// <summary>
     /// Removes the series folder of a previous run, whatever the reason the series is not written there
     /// anymore, and only when the folder is the one of this program.
     /// </summary>
@@ -538,10 +618,15 @@ public sealed partial class ThreeCatSyncService
     /// <param name="current">Folder of this run, or <c>null</c> when it is not written anymore.</param>
     /// <param name="programId">3Cat program id, used to make sure the old folder is the one of this program.</param>
     /// <param name="library">Which library the folder belongs to, for the log.</param>
+    /// <remarks>
+    /// A folder that is not there anymore was already cleaned by a previous run —or was never written—, so
+    /// there is nothing to remove and nothing to say: the log only carries the folders that were in the way.
+    /// </remarks>
     private void RemoveMovedFolder(string? previous, string? current, string programId, string library)
     {
         if (string.IsNullOrEmpty(previous)
-            || (current is not null && LibraryPath.SamePath(previous, current)))
+            || (current is not null && LibraryPath.SamePath(previous, current))
+            || !Directory.Exists(previous))
         {
             return;
         }
@@ -585,6 +670,48 @@ public sealed partial class ThreeCatSyncService
             videos.Select(video => video.Programs?.FirstOrDefault()?.Title).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)),
             reference.Title,
             programId);
+
+    /// <summary>
+    /// Gets the name of the series out of the title of the program: with
+    /// <see cref="PluginConfiguration.TrimWholeProgramSuffix"/>, the format 3Cat appends to the programs it
+    /// publishes whole («Crackòvia - Programa sencer») is removed.
+    /// </summary>
+    /// <param name="programs">Programs of the configuration.</param>
+    /// <param name="reference">Reference of the program being written, so it is not taken for another one.</param>
+    /// <param name="title">Title the catalog publishes, or the fallback the plugin resolved.</param>
+    /// <param name="trimSuffix">Whether the user asked for the format to be removed.</param>
+    /// <returns>The name of the series: the name of the program, or the title of the catalog.</returns>
+    /// <remarks>
+    /// 3Cat publishes the same show twice —one program with the clips and one with the whole program—, and the
+    /// series folder belongs to a single program: if another program of the configuration already answers to
+    /// the name that the format leaves behind, the title is kept whole, because both series would share a
+    /// folder and every run would delete the files it did not write. The programs added by id carry no cached
+    /// title until the page or a run resolves it, so the guard is as good as the cache it reads.
+    /// </remarks>
+    internal static string SeriesName(
+        IEnumerable<ThreeCatProgramReference>? programs,
+        ThreeCatProgramReference? reference,
+        string title,
+        bool trimSuffix)
+    {
+        if (!trimSuffix || string.IsNullOrWhiteSpace(title))
+        {
+            return title;
+        }
+
+        var name = LibraryNaming.StripWholeProgramSuffix(title);
+        if (string.Equals(name, title, StringComparison.Ordinal))
+        {
+            return title;
+        }
+
+        var taken = programs?.Any(program =>
+            !ReferenceEquals(program, reference)
+            && !string.IsNullOrWhiteSpace(program.Title)
+            && string.Equals(program.Title.Trim(), name, StringComparison.OrdinalIgnoreCase)) == true;
+
+        return taken ? title : name;
+    }
 
     /// <summary>
     /// Builds the series metadata. The kind of program 3Cat files the program under («Sèrie»,

@@ -299,7 +299,9 @@
 
                     <div class="fieldDescription" id="ThreeCatProgramHint">
                         El título que devuelve 3Cat se usa como nombre de la carpeta de la serie. Si lo cambias a
-                        mano en el sistema de archivos, cambia también aquí.
+                        mano en el sistema de archivos, cambia también aquí. Con «Quitar «Programa sencer» del
+                        nombre de la serie», el formato que 3Cat añade a los programas que publica enteros
+                        («Crackòvia - Programa sencer») no forma parte del nombre.
                     </div>
 
                     <div class="threeCatTableWrap">
@@ -362,6 +364,21 @@
                         subcarpeta sin duplicar ningún archivo. La primera actualización después de activarlo mueve
                         cada programa a su carpeta: Jellyfin los vuelve a leer y se pierde una vez el estado
                         «visto».
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="ThreeCatTrimWholeProgramSuffix" />
+                        <span>Quitar «Programa sencer» del nombre de la serie</span>
+                    </label>
+                    <div class="fieldDescription">
+                        3Cat publica la emisión completa de un programa como un programa aparte («Crackòvia -
+                        Programa sencer», «Polònia - Programa sencer»), así que el nombre de la serie arrastra la
+                        forma del vídeo. Activado, la serie y su carpeta se llaman como el programa («Crackòvia»,
+                        «Polònia»). La primera actualización que lo aplique renombra la carpeta y borra la
+                        anterior —solo cuando es del plugin y su <code>tvshow.nfo</code> lleva el id del
+                        programa—, de modo que Jellyfin vuelve a leer esas series una vez. Si otro programa de la
+                        lista ya se llama así, el título se queda entero: dos programas en la misma carpeta se
+                        borrarían los archivos el uno al otro.
                     </div>
 
                     <div class="threeCatActions">
@@ -2533,6 +2550,8 @@
                         threeCatField(config, 'separateChildren') !== false;
                     document.querySelector('#ThreeCatOrganizeByKind').checked =
                         threeCatField(config, 'organizeByKind') !== false;
+                    document.querySelector('#ThreeCatTrimWholeProgramSuffix').checked =
+                        threeCatField(config, 'trimWholeProgramSuffix') === true;
                     document.querySelector('#ThreeCatPruneExpired').checked =
                         threeCatField(config, 'pruneExpired') !== false;
                     document.querySelector('#ThreeCatDeleteObsolete').checked =
@@ -2590,6 +2609,8 @@
                     config.SeparateAnime = document.querySelector('#ThreeCatSeparateAnime').checked;
                     config.SeparateChildren = document.querySelector('#ThreeCatSeparateChildren').checked;
                     config.OrganizeByKind = document.querySelector('#ThreeCatOrganizeByKind').checked;
+                    config.TrimWholeProgramSuffix =
+                        document.querySelector('#ThreeCatTrimWholeProgramSuffix').checked;
                     config.KindLibraries = ThreeCatConfig.kindLibraries.map(function (entry) {
                         return {
                             Category: entry.Category,

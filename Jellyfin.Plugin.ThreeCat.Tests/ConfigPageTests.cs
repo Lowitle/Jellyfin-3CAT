@@ -121,6 +121,25 @@ public sealed class ConfigPageTests
     }
 
     [Fact]
+    public void Page_SendsTheNameOfTheSeriesWithoutTheWholeProgramFormat()
+    {
+        // 3Cat publishes the full emission of a program as a program of its own, so the page offers to keep the
+        // name of the show: the server has to receive the choice or a save would undo it.
+        var page = ReadPage();
+
+        Assert.Contains("id=\"ThreeCatTrimWholeProgramSuffix\"", page, StringComparison.Ordinal);
+        Assert.Contains(
+            "threeCatField(config, 'trimWholeProgramSuffix') === true",
+            page,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "document.querySelector('#ThreeCatTrimWholeProgramSuffix').checked",
+            page,
+            StringComparison.Ordinal);
+        Assert.Contains("config.TrimWholeProgramSuffix =", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Page_ShowsTheVersionOfThePluginTheServerIsRunning()
     {
         // A page cached by the browser keeps showing the old layout after an update, and a plugin that was

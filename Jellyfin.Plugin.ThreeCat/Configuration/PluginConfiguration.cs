@@ -210,6 +210,7 @@ public class PluginConfiguration : BasePluginConfiguration
         SeparateAnime = true;
         SeparateChildren = true;
         OrganizeByKind = true;
+        TrimWholeProgramSuffix = false;
         KindLibraries = [];
         MetadataSource = MetadataSource.ThreeCat;
         OpenTvIdsUrl = OpenTvIdsClient.DefaultUrl;
@@ -394,6 +395,26 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </para>
     /// </remarks>
     public bool OrganizeByKind { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the whole-program format of 3Cat is removed from the name of
+    /// the series.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 3Cat publishes the full emission of a program as a program of its own —«Crackòvia - Programa sencer»,
+    /// «Polònia - Programa sencer»—, so the name of the series carries the shape of the video instead of the
+    /// name of the show. With this on, the series and its folder are called «Crackòvia» and «Polònia».
+    /// </para>
+    /// <para>
+    /// It is off by default and the XML serializer gives the default to a configuration written by an older
+    /// build: renaming the series moves its folder, and Jellyfin reads the moved series again, so the change
+    /// has to be asked for —the same reason the organised layout is off for an old configuration. The name is
+    /// only shortened when no other program of the configuration answers to it: a series folder belongs to one
+    /// program, so two of them under the same name would delete the files the other one writes.
+    /// </para>
+    /// </remarks>
+    public bool TrimWholeProgramSuffix { get; set; }
 
     /// <summary>
     /// Gets or sets the libraries of Jellyfin, by name, that also index the folder of a kind of program.

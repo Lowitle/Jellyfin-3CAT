@@ -125,3 +125,28 @@ del episodio, especiales en `Season 0` con la fecha delante y duplicados descart
 (`Sync/EpisodeNumbering.cs`, tests en `EpisodeNumberingTests.cs`), con migración automática vía
 `PluginConfiguration.NamingVersion`; desplegable de «Biblioteca» legible (fondo explícito en
 `.threeCatSelect` y sus `option`); películas importadas como películas (`PUFF_FILM`).
+
+## Estado de la 1.12.0.0
+
+Detalle y decisiones en `ROADMAP.md`:
+
+1. **Hecho.** El nombre de la serie es el del programa: 3Cat publica la emisión completa como un programa
+   aparte (`Crackòvia - Programa sencer`), así que el título de la serie llevaba la forma del vídeo en la
+   carpeta, en el `tvshow.nfo`, en el `showtitle` de cada episodio y en el nombre de cada archivo. La casilla
+   «Quitar «Programa sencer» del nombre de la serie» (`PluginConfiguration.TrimWholeProgramSuffix`, desactivada
+   por defecto) quita el sufijo con `LibraryNaming.StripWholeProgramSuffix`: el nombre, un separador (`-`, `–`,
+   `—`, `|`, `:`) o un paréntesis, y «programa sencer» en cualquier combinación de mayúsculas. Un título sin
+   separador delante («Programa sencer», «El programa sencer») se queda entero porque es un programa de verdad
+   (`LibraryNamingTests`).
+2. **Hecho.** Un programa, una carpeta: si otro programa de la configuración ya se llama como el nombre que
+   queda, `ThreeCatSyncService.SeriesName` deja el título entero. Sin la guardia, los clips y el programa
+   completo escribirían en la misma carpeta y cada ejecución borraría los archivos de la otra
+   (`SeriesNamingTests`).
+3. **Hecho.** El renombrado deja la biblioteca limpia: la carpeta del nombre antiguo se borra como cualquier
+   otra carpeta que el programa abandona —`WrittenPath` de la ejecución anterior, o `RenamedSeriesFolder`
+   cuando ninguna la anotó—, solo cuando contiene únicamente archivos del plugin y su `tvshow.nfo` lleva el id
+   del programa, también en la biblioteca espejo. `RemoveMovedFolder` deja de anunciar carpetas que ya no
+   existen.
+4. **Hecho.** La configuración no sube de esquema: el serializador XML da el valor de la propiedad a una
+   configuración escrita por una versión anterior, que es «desactivada», así que instalar la versión no renombra
+   nada por su cuenta (`PluginConfigurationTests`, `ConfigPageTests`).

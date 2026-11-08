@@ -1,10 +1,49 @@
 # Hoja de ruta
 
-Notas de trabajo. Estado de la **v1.11.0.0**: TVDB es una fuente de numeración completa —en su orden de
-emisión y en el absoluto—, y `README.md` y `resumen.md` describen el comportamiento de 1.11.0.0. Las notas
-de 1.10.0.0 y 1.5.0.0 se conservan como registro de las decisiones anteriores —tabla de programas,
-clasificación por programa, sub-bibliotecas, numeración, desplegable de biblioteca, espejo y películas—,
-que siguen explicando por qué el código es como es.
+Notas de trabajo. Estado de la **v1.12.0.0**: el nombre de la serie es el del programa —el sufijo «Programa
+sencer» de 3Cat se quita del nombre cuando el usuario lo pide—, y `README.md` y `resumen.md` describen el
+comportamiento de 1.12.0.0. Las notas de 1.11.0.0, 1.10.0.0 y 1.5.0.0 se conservan como registro de las
+decisiones anteriores —tabla de programas, clasificación por programa, sub-bibliotecas, numeración, desplegable
+de biblioteca, espejo y películas—, que siguen explicando por qué el código es como es.
+
+## v1.12.0.0
+
+### 1. El nombre de la serie es el del programa (implementado)
+
+**El problema.** 3Cat no publica la emisión completa como un episodio del programa, sino como un programa
+aparte: «Crackòvia» es el programa de los clips y «Crackòvia - Programa sencer» el de las emisiones enteras. El
+plugin usa el título del catálogo como nombre de la serie, así que la biblioteca mostraba «Crackòvia - Programa
+sencer» en la carpeta, en el `<title>` del `tvshow.nfo`, en el `<showtitle>` de cada episodio y en el nombre de
+cada archivo, cuando el programa se llama «Crackòvia».
+
+**La decisión.** El sufijo nombra la forma del vídeo, no el programa, así que se quita del nombre —serie, carpeta
+y nombres de archivo, que se construyen con el mismo título— y todo lo demás sigue igual. Es una casilla
+(«Quitar «Programa sencer» del nombre de la serie», `PluginConfiguration.TrimWholeProgramSuffix`) y no un
+comportamiento automático porque renombrar la serie mueve su carpeta y Jellyfin la vuelve a leer: desde 1.9.0.0 la
+doctrina del plugin es que un cambio visible se pide, no se impone. La configuración no sube de esquema: el
+serializador XML da el valor de la propiedad a una configuración escrita por una versión anterior, que es
+«desactivada».
+
+**Qué es un sufijo.** `LibraryNaming.StripWholeProgramSuffix` reconoce el nombre, un separador —`-`, `–`, `—`,
+`|`, `:`— o un paréntesis de apertura, y «programa sencer» en cualquier combinación de mayúsculas. El separador es
+la prueba de que el título anuncia una forma del vídeo: «Programa sencer» y «El programa sencer» no llevan
+ninguno y son programas de verdad, así que se quedan enteros, igual que un título que no termina en el sufijo
+(«Merlí - Programa sencer - Temporada 2»).
+
+**Dos programas, una carpeta.** 3Cat publica los clips y el programa completo por separado, y una carpeta de serie
+es de un solo programa: si otro programa de la configuración ya se llama como el nombre que queda, el título se
+deja entero (`ThreeCatSyncService.SeriesName`). Sin esa guardia las dos series escribirían en la misma carpeta y
+cada ejecución borraría los archivos de la otra —la limpieza de obsoletos elimina todo lo que la ejecución no
+acaba de escribir—. La guardia lee el título cacheado del programa (`ThreeCatProgramReference.Title`), que la
+página guarda al añadirlo desde el catálogo; un programa añadido por id no tiene caché hasta que la página o una
+ejecución lo resuelve, así que la guardia vale lo que vale la caché.
+
+**La carpeta del nombre antiguo.** El renombrado no necesita una migración de esquema: `WrittenPath` ya guarda la
+carpeta de la última ejecución y `RemoveMovedSeries` la borra cuando la serie se escribe en otra —solo cuando
+contiene únicamente archivos del plugin y su `tvshow.nfo` lleva el id del programa—. Para la biblioteca escrita
+por una versión que no anotaba la ruta, `RenamedSeriesFolder` añade la carpeta del título del catálogo como
+segundo candidato, con las mismas comprobaciones, también en la biblioteca espejo. `RemoveMovedFolder` deja de
+anunciar carpetas que ya no existen: el registro solo lleva lo que estaba en medio.
 
 ## v1.11.0.0
 

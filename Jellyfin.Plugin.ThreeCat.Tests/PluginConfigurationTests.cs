@@ -22,6 +22,10 @@ public sealed class PluginConfigurationTests
         // the page shows and the one «Crear biblioteca» prepares out of the box.
         Assert.True(configuration.OrganizeByKind);
 
+        // The whole-program format of 3Cat («Crackòvia - Programa sencer») stays in the name of the series until
+        // the user asks for it: renaming a series moves its folder, and Jellyfin reads it again.
+        Assert.False(configuration.TrimWholeProgramSuffix);
+
         // No kind of program is attached to a second library until the user chooses one.
         Assert.Empty(configuration.KindLibraries);
 

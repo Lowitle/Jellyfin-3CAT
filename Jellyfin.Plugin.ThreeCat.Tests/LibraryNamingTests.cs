@@ -70,6 +70,40 @@ public class LibraryNamingTests
     }
 
     [Theory]
+    [InlineData("Crackòvia - Programa sencer", "Crackòvia")]
+    [InlineData("Crackòvia – Programa sencer", "Crackòvia")]
+    [InlineData("Crackòvia — Programa sencer", "Crackòvia")]
+    [InlineData("Crackòvia | Programa sencer", "Crackòvia")]
+    [InlineData("Crackòvia: Programa sencer", "Crackòvia")]
+    [InlineData("Crackòvia (Programa sencer)", "Crackòvia")]
+    [InlineData("Crackòvia - programa sencer", "Crackòvia")]
+    [InlineData("Crackòvia - Programa Sencer", "Crackòvia")]
+    [InlineData("Crackòvia  -  Programa sencer", "Crackòvia")]
+    [InlineData("Crackòvia - Programa sencer ", "Crackòvia")]
+    [InlineData("Doraemon, el gat còsmic - Programa sencer", "Doraemon, el gat còsmic")]
+    public void StripWholeProgramSuffix_RemovesTheFormat3CatAppendsToAWholeProgram(string title, string expected)
+    {
+        // The suffix names the shape of the video, not the program: the series of the library is the show.
+        Assert.Equal(expected, LibraryNaming.StripWholeProgramSuffix(title));
+        Assert.Equal(expected, LibraryNaming.SeriesFolderName(LibraryNaming.StripWholeProgramSuffix(title)));
+    }
+
+    [Theory]
+    [InlineData("Crackòvia")]
+    [InlineData("Programa sencer")]
+    [InlineData("El programa sencer")]
+    [InlineData("Crackòvia - Programa sencer - Temporada 2")]
+    [InlineData("El programa sencer de Crackòvia")]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void StripWholeProgramSuffix_KeepsATitleThatAnnouncesNoWholeProgramFormat(string? title)
+    {
+        // A program called «Programa sencer» carries no separator before the suffix and is a show of its own.
+        Assert.Equal(title ?? string.Empty, LibraryNaming.StripWholeProgramSuffix(title));
+    }
+
+    [Theory]
     [InlineData(1, 3, "15/06/26", "Doraemon - S01E03 - 15 06 26")]
     [InlineData(12, 7, "Títol", "Doraemon - S12E07 - Títol")]
     [InlineData(1, 1, "", "Doraemon - S01E01")]

@@ -1,12 +1,13 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Jellyfin.Plugin.ThreeCat.Library;
 
 /// <summary>
 /// Builds file and folder names that are safe on every platform Jellyfin can run on.
 /// </summary>
-public static class LibraryNaming
+public static partial class LibraryNaming
 {
     private static readonly char[] Forbidden =
     [
@@ -62,6 +63,36 @@ public static class LibraryNaming
     /// <returns>The folder name.</returns>
     public static string SeriesFolderName(string seriesTitle)
         => Sanitize(seriesTitle, 100, "Serie");
+
+    /// <summary>
+    /// Removes from the title of a program the format 3Cat appends to the programs it publishes whole.
+    /// </summary>
+    /// <param name="title">Title of the program («Crackòvia - Programa sencer», «Polònia – Programa sencer»).</param>
+    /// <returns>
+    /// The name of the program («Crackòvia»), or the title itself when it announces no whole-program format.
+    /// </returns>
+    /// <remarks>
+    /// The suffix names the shape of the video, not the program: the series of the library is the program, so
+    /// «Crackòvia - Programa sencer» is the same show as «Crackòvia». A title that carries no separator before
+    /// the suffix («Programa sencer», «El programa sencer») is a program of its own and is kept whole, and so
+    /// is a title that is nothing but the suffix.
+    /// </remarks>
+    public static string StripWholeProgramSuffix(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return title ?? string.Empty;
+        }
+
+        var match = WholeProgramSuffixRegex().Match(title.Trim());
+        if (!match.Success)
+        {
+            return title;
+        }
+
+        var name = match.Groups["name"].Value.TrimEnd(' ', '-', '–', '—', '|', ':', ',', '.');
+        return name.Length == 0 ? title : name;
+    }
 
     /// <summary>
     /// Gets the base file name of an episode: <c>Serie - S01E02 - Título</c>.
@@ -194,4 +225,17 @@ public static class LibraryNaming
 
         return builder.ToString();
     }
+
+    /// <summary>
+    /// Matches a title that ends with the whole-program format of 3Cat: the name, a separator —«-», «–», «—»,
+    /// «|» or «:»— or an opening parenthesis, and the format itself, optionally closed by a parenthesis.
+    /// </summary>
+    /// <remarks>
+    /// The separator is what tells «Crackòvia - Programa sencer» —a program published whole— from a program
+    /// called «Programa sencer» or «El programa sencer», which carry no separator and are kept whole.
+    /// </remarks>
+    [GeneratedRegex(
+        @"^(?<name>.+?)\s*(?:[-–—|:]\s*|\(\s*)programa\s+sencer\s*\)?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex WholeProgramSuffixRegex();
 }
