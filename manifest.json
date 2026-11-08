@@ -8,6 +8,14 @@
   "category": "General",
   "versions": [
     {
+      "version": "1.12.0.0",
+      "changelog": "3Cat 1.12.0.0",
+      "targetAbi": "10.11.0.0",
+      "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.12.0.0/threecat_1.12.0.0.zip",
+      "checksum": "92C1370536225FC2EF9A3B412EE1B546",
+      "timestamp": "2026-11-08T06:59:53Z"
+    },
+    {
       "version": "1.11.0.1",
       "changelog": "Instalar una versión nueva del plugin deja de desactivar la organización por tipo. La migración de la configuración apagaba la casilla «Organizar los programas por tipo» cada vez que subía la versión del esquema, y no solo la primera vez que apareció el layout: al actualizar desde 1.11.0.0 el plugin volvía a escribir las series en la carpeta madre mientras las bibliotecas indexaban las subcarpetas de los tipos, así que la biblioteca «3Cat» aparecía vacía y las carpetas antiguas se quedaban donde estaban. Ahora la casilla solo se apaga en una configuración escrita antes de 1.9.0.0, que es la que nunca la tuvo, y la elección del usuario sobrevive a las actualizaciones. Además, cuando una serie se mueve a la carpeta de su tipo el plugin borra también la carpeta plana antigua aunque ninguna ejecución anterior hubiera anotado su ruta: la limpieza sigue exigiendo que la carpeta sea del plugin y que su tvshow.nfo lleve el id del programa.",
       "targetAbi": "10.11.0.0",
