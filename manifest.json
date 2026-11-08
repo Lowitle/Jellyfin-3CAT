@@ -9,7 +9,7 @@
   "versions": [
     {
       "version": "1.12.0.0",
-      "changelog": "3Cat 1.12.0.0",
+      "changelog": "El nombre de la serie deja de arrastrar la forma del vídeo. 3Cat publica la emisión completa de un programa como un programa aparte («Crackòvia - Programa sencer», «Polònia - Programa sencer»), así que el título del catálogo llevaba el sufijo hasta la serie, su carpeta, su tvshow.nfo y el nombre de cada episodio aunque el programa se llame «Crackòvia». La página estrena la casilla «Quitar «Programa sencer» del nombre de la serie», desactivada por defecto: activada, la serie y su carpeta se llaman como el programa, y el sufijo se reconoce escrito con cualquiera de los separadores de 3Cat («-», «–», «—», «|», «:» o un paréntesis), sin tocar un título que no lleva separador delante («Programa sencer», «El programa sencer»), que es un programa de verdad. La primera actualización que lo aplique escribe la serie en la carpeta nueva y borra la del nombre antiguo —solo cuando la carpeta es del plugin y su tvshow.nfo lleva el id del programa—, también en la biblioteca espejo, así que la biblioteca no muestra la serie dos veces; Jellyfin vuelve a leer esas series una vez. Si otro programa de la lista ya se llama así —3Cat publica los clips y el programa completo como dos programas—, el título se queda entero, porque dos programas en la misma carpeta se borrarían los archivos el uno al otro en cada ejecución. La configuración no cambia de esquema: una configuración escrita por una versión anterior llega con la casilla desactivada.",
       "targetAbi": "10.11.0.0",
       "sourceUrl": "https://github.com/Lowitle/Jellyfin-3CAT/releases/download/v1.12.0.0/threecat_1.12.0.0.zip",
       "checksum": "92C1370536225FC2EF9A3B412EE1B546",
